@@ -12,29 +12,34 @@ connectDB();
 const app = express();
 
 // Middleware
-// CORS configuration - Cho phép tất cả origins trong production để tránh lỗi
+// CORS configuration - Đơn giản hóa để fix lỗi production
+// Cho phép tất cả origins để tránh lỗi CORS
+app.use((req, res, next) => {
+  // Log để debug
+  console.log('Request origin:', req.headers.origin);
+  console.log('Request method:', req.method);
+  console.log('Request path:', req.path);
+  
+  // Set CORS headers
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
+
+// Cũng dùng cors middleware để đảm bảo
 app.use(cors({
-  origin: function (origin, callback) {
-    // Cho phép tất cả origins (bao gồm cả không có origin)
-    // Trong production, có thể restrict lại bằng cách set FRONTEND_URL
-    const allowedOrigins = process.env.FRONTEND_URL 
-      ? process.env.FRONTEND_URL.split(',').map(url => url.trim())
-      : null;
-    
-    // Nếu không set FRONTEND_URL hoặc origin trong danh sách, cho phép
-    if (!allowedOrigins || allowedOrigins.includes('*') || !origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      // Log để debug
-      console.log('CORS blocked origin:', origin);
-      console.log('Allowed origins:', allowedOrigins);
-      callback(null, true); // Tạm thời cho phép tất cả để fix lỗi
-    }
-  },
+  origin: '*', // Cho phép tất cả origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept'],
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
