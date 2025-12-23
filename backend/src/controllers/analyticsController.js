@@ -1,0 +1,368 @@
+const Order = require('../models/Order');
+const Product = require('../models/Product');
+
+// Thống kê theo ngày
+const getDailyAnalytics = async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp ngày (YYYY-MM-DD)' });
+    }
+
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalOrders = orders.length;
+    const totalItems = orders.reduce((sum, order) => {
+      return sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+    }, 0);
+
+    // Top sản phẩm
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity;
+        productStats[item.productId].revenue += item.price * item.quantity;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
+
+    res.json({
+      date,
+      totalRevenue,
+      totalOrders,
+      totalItems,
+      topProducts,
+      orders,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Thống kê theo tuần
+const getWeeklyAnalytics = async (req, res) => {
+  try {
+    const { week } = req.query; // Format: YYYY-WW
+    if (!week) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp tuần (YYYY-WW)' });
+    }
+
+    const [year, weekNum] = week.split('-W').map(Number);
+    const start = new Date(year, 0, 1);
+    const daysToAdd = (weekNum - 1) * 7;
+    start.setDate(start.getDate() + daysToAdd - start.getDay());
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalOrders = orders.length;
+
+    // So sánh với tuần trước
+    const prevWeekStart = new Date(start);
+    prevWeekStart.setDate(prevWeekStart.getDate() - 7);
+    const prevWeekEnd = new Date(end);
+    prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
+
+    const prevOrders = await Order.find({
+      createdAt: { $gte: prevWeekStart, $lte: prevWeekEnd },
+    });
+    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    res.json({
+      week,
+      startDate: start,
+      endDate: end,
+      totalRevenue,
+      totalOrders,
+      previousWeekRevenue: prevRevenue,
+      revenueChange: totalRevenue - prevRevenue,
+      revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Thống kê theo tháng
+const getMonthlyAnalytics = async (req, res) => {
+  try {
+    const { month } = req.query; // Format: YYYY-MM
+    if (!month) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const start = new Date(year, monthNum - 1, 1);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalOrders = orders.length;
+
+    // So sánh với tháng trước
+    const prevMonthStart = new Date(year, monthNum - 2, 1);
+    const prevMonthEnd = new Date(year, monthNum - 1, 0, 23, 59, 59, 999);
+
+    const prevOrders = await Order.find({
+      createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
+    });
+    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Thống kê theo ngày trong tháng
+    const dailyStats = {};
+    orders.forEach((order) => {
+      const day = order.createdAt.getDate();
+      if (!dailyStats[day]) {
+        dailyStats[day] = { revenue: 0, orders: 0 };
+      }
+      dailyStats[day].revenue += order.totalAmount;
+      dailyStats[day].orders += 1;
+    });
+
+    res.json({
+      month,
+      startDate: start,
+      endDate: end,
+      totalRevenue,
+      totalOrders,
+      previousMonthRevenue: prevRevenue,
+      revenueChange: totalRevenue - prevRevenue,
+      revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      dailyStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Thống kê theo quý
+const getQuarterlyAnalytics = async (req, res) => {
+  try {
+    const { quarter } = req.query; // Format: YYYY-Q
+    if (!quarter) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
+    }
+
+    const [year, quarterNum] = quarter.split('-Q').map(Number);
+    const startMonth = (quarterNum - 1) * 3;
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalOrders = orders.length;
+
+    // So sánh với quý trước
+    const prevQuarterStart = new Date(year, startMonth - 3, 1);
+    const prevQuarterEnd = new Date(year, startMonth, 0, 23, 59, 59, 999);
+
+    const prevOrders = await Order.find({
+      createdAt: { $gte: prevQuarterStart, $lte: prevQuarterEnd },
+    });
+    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    res.json({
+      quarter,
+      startDate: start,
+      endDate: end,
+      totalRevenue,
+      totalOrders,
+      previousQuarterRevenue: prevRevenue,
+      revenueChange: totalRevenue - prevRevenue,
+      revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Thống kê theo năm
+const getYearlyAnalytics = async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY)' });
+    }
+
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalOrders = orders.length;
+
+    // So sánh với năm trước
+    const prevYearStart = new Date(year - 1, 0, 1);
+    const prevYearEnd = new Date(year - 1, 11, 31, 23, 59, 59, 999);
+
+    const prevOrders = await Order.find({
+      createdAt: { $gte: prevYearStart, $lte: prevYearEnd },
+    });
+    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Thống kê theo tháng
+    const monthlyStats = {};
+    orders.forEach((order) => {
+      const month = order.createdAt.getMonth() + 1;
+      if (!monthlyStats[month]) {
+        monthlyStats[month] = { revenue: 0, orders: 0 };
+      }
+      monthlyStats[month].revenue += order.totalAmount;
+      monthlyStats[month].orders += 1;
+    });
+
+    res.json({
+      year,
+      startDate: start,
+      endDate: end,
+      totalRevenue,
+      totalOrders,
+      previousYearRevenue: prevRevenue,
+      revenueChange: totalRevenue - prevRevenue,
+      revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      monthlyStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Giờ cao điểm
+const getPeakHours = async (req, res) => {
+  try {
+    const { date } = req.query;
+    const start = new Date(date);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(date);
+    end.setHours(23, 59, 59, 999);
+
+    const orders = await Order.find({
+      createdAt: { $gte: start, $lte: end },
+    });
+
+    const hourStats = {};
+    for (let i = 0; i < 24; i++) {
+      hourStats[i] = { revenue: 0, orders: 0 };
+    }
+
+    orders.forEach((order) => {
+      const hour = order.createdAt.getHours();
+      hourStats[hour].revenue += order.totalAmount;
+      hourStats[hour].orders += 1;
+    });
+
+    res.json({
+      date,
+      hourStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Top sản phẩm
+const getTopProducts = async (req, res) => {
+  try {
+    const { period, startDate, endDate } = req.query;
+    let query = {};
+
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: start, $lte: end };
+    } else if (period === 'today') {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      query.createdAt = { $gte: today, $lt: tomorrow };
+    } else if (period === 'week') {
+      const today = new Date();
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      query.createdAt = { $gte: weekAgo, $lte: today };
+    } else if (period === 'month') {
+      const today = new Date();
+      const monthAgo = new Date(today);
+      monthAgo.setMonth(monthAgo.getMonth() - 1);
+      query.createdAt = { $gte: monthAgo, $lte: today };
+    }
+
+    const orders = await Order.find(query);
+
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+            orders: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity;
+        productStats[item.productId].revenue += item.price * item.quantity;
+        productStats[item.productId].orders += 1;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 20);
+
+    res.json({
+      period,
+      topProducts,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+module.exports = {
+  getDailyAnalytics,
+  getWeeklyAnalytics,
+  getMonthlyAnalytics,
+  getQuarterlyAnalytics,
+  getYearlyAnalytics,
+  getPeakHours,
+  getTopProducts,
+};
+

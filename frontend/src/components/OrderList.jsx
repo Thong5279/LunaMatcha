@@ -1,0 +1,191 @@
+import { useState, useEffect } from 'react';
+import { orderService } from '../services/orderService';
+import showToast from '../utils/toast';
+import OrderDetail from './OrderDetail';
+import LoadingSkeleton from './LoadingSkeleton';
+import EmptyState from './EmptyState';
+import { HiClipboardDocumentList } from 'react-icons/hi2';
+
+const OrderList = () => {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [showDetail, setShowDetail] = useState(false);
+  const [filterDate, setFilterDate] = useState('');
+
+  useEffect(() => {
+    fetchOrders();
+  }, [filterDate]);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const params = filterDate ? { date: filterDate } : {};
+      const response = await orderService.getAll(params);
+      setOrders(response.data);
+    } catch (error) {
+      showToast.error('Lỗi khi tải danh sách đơn hàng');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Bạn có chắc muốn xóa đơn hàng này?')) {
+      return;
+    }
+
+    try {
+      await orderService.delete(id);
+      showToast.success('Đã xóa đơn hàng');
+      fetchOrders();
+    } catch (error) {
+      showToast.error('Lỗi khi xóa đơn hàng');
+      console.error(error);
+    }
+  };
+
+  const handleEdit = (order) => {
+    setSelectedOrder(order);
+    setShowDetail(true);
+  };
+
+  const handleReorder = async (order) => {
+    try {
+      await orderService.create({ items: order.items });
+      showToast.success('Đã tạo đơn hàng mới từ đơn cũ');
+    } catch (error) {
+      showToast.error('Lỗi khi tạo đơn hàng mới');
+      console.error(error);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return new Intl.DateTimeFormat('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
+  if (loading) {
+    return <LoadingSkeleton type="list" />;
+  }
+
+  return (
+    <>
+      <div className="p-4 space-y-3">
+        {/* Filter */}
+        <div>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(e) => setFilterDate(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+          {filterDate && (
+            <button
+              onClick={() => setFilterDate('')}
+              className="mt-2 text-sm text-blue-500"
+            >
+              Xóa bộ lọc
+            </button>
+          )}
+        </div>
+
+        {/* Orders */}
+        {orders.length === 0 ? (
+          <EmptyState
+            icon={HiClipboardDocumentList}
+            title="Chưa có đơn hàng nào"
+            message="Các đơn hàng của bạn sẽ hiển thị ở đây"
+          />
+        ) : (
+          orders.map((order) => (
+            <div
+              key={order._id}
+              className="bg-white rounded-lg shadow-md p-4 space-y-3"
+            >
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-xs text-gray-500">
+                    {formatDate(order.createdAt)}
+                  </p>
+                  <p className="font-semibold text-lg mt-1">
+                    {new Intl.NumberFormat('vi-VN').format(order.totalAmount)} đ
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {order.items.length} món
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEdit(order)}
+                    className="px-4 py-2 bg-secondary text-white text-sm rounded-lg hover:bg-secondary-dark min-h-[44px] transition-colors"
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    onClick={() => handleReorder(order)}
+                    className="px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark min-h-[44px] transition-colors"
+                  >
+                    Làm lại
+                  </button>
+                  <button
+                    onClick={() => handleDelete(order._id)}
+                    className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px]"
+                  >
+                    Xóa
+                  </button>
+                </div>
+              </div>
+
+              {/* Order Items Preview */}
+              <div className="border-t pt-3 space-y-1">
+                {order.items.slice(0, 3).map((item, index) => (
+                  <div key={index} className="text-sm text-gray-600">
+                    {item.quantity}x {item.productName} {item.size && `(${item.size === 'small' ? 'Nhỏ' : 'Lớn'})`}
+                    {item.iceType && (
+                      <span className="text-xs text-gray-500">
+                        {' '}• Đá: {item.iceType === 'common' ? 'Chung' : item.iceType === 'separate' ? 'Riêng' : 'Không đá'}
+                      </span>
+                    )}
+                    {item.toppings.length > 0 && (
+                      <span className="text-xs text-gray-400">
+                        {' '}
+                        ({item.toppings.map((t) => t.toppingName).join(', ')})
+                      </span>
+                    )}
+                  </div>
+                ))}
+                {order.items.length > 3 && (
+                  <p className="text-xs text-gray-400">
+                    +{order.items.length - 3} món khác
+                  </p>
+                )}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {showDetail && selectedOrder && (
+        <OrderDetail
+          order={selectedOrder}
+          onClose={() => {
+            setShowDetail(false);
+            setSelectedOrder(null);
+            fetchOrders();
+          }}
+        />
+      )}
+    </>
+  );
+};
+
+export default OrderList;
+
