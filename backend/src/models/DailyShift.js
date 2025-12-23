@@ -13,6 +13,16 @@ const dailyShiftSchema = new mongoose.Schema(
       min: 0,
       default: 0,
     },
+    cashAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    bankTransferAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     endAmount: {
       type: Number,
       default: 0,

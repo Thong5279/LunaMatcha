@@ -14,8 +14,12 @@ const getDailyAnalytics = async (req, res) => {
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     // Tính tổng doanh thu - đảm bảo tính đúng
@@ -67,7 +71,10 @@ const getDailyAnalytics = async (req, res) => {
     yesterdayEnd.setHours(23, 59, 59, 999);
 
     const yesterdayOrders = await Order.find({
-      createdAt: { $gte: yesterday, $lte: yesterdayEnd },
+      $or: [
+        { orderDate: { $gte: yesterday, $lte: yesterdayEnd } },
+        { orderDate: { $exists: false }, createdAt: { $gte: yesterday, $lte: yesterdayEnd } }
+      ]
     });
 
     const previousDayRevenue = yesterdayOrders.reduce((sum, order) => {
@@ -114,8 +121,12 @@ const getWeeklyAnalytics = async (req, res) => {
     end.setDate(end.getDate() + 6);
     end.setHours(23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     const totalRevenue = orders.reduce((sum, order) => {
@@ -160,7 +171,10 @@ const getWeeklyAnalytics = async (req, res) => {
     prevWeekEnd.setDate(prevWeekEnd.getDate() - 7);
 
     const prevOrders = await Order.find({
-      createdAt: { $gte: prevWeekStart, $lte: prevWeekEnd },
+      $or: [
+        { orderDate: { $gte: prevWeekStart, $lte: prevWeekEnd } },
+        { orderDate: { $exists: false }, createdAt: { $gte: prevWeekStart, $lte: prevWeekEnd } }
+      ]
     });
     const prevRevenue = prevOrders.reduce((sum, order) => {
       if (!order.totalAmount || isNaN(order.totalAmount)) {
@@ -197,8 +211,12 @@ const getMonthlyAnalytics = async (req, res) => {
     const start = new Date(year, monthNum - 1, 1);
     const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     const totalRevenue = orders.reduce((sum, order) => {
@@ -241,7 +259,10 @@ const getMonthlyAnalytics = async (req, res) => {
     const prevMonthEnd = new Date(year, monthNum - 1, 0, 23, 59, 59, 999);
 
     const prevOrders = await Order.find({
-      createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
+      $or: [
+        { orderDate: { $gte: prevMonthStart, $lte: prevMonthEnd } },
+        { orderDate: { $exists: false }, createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd } }
+      ]
     });
     const prevRevenue = prevOrders.reduce((sum, order) => {
       if (!order.totalAmount || isNaN(order.totalAmount)) {
@@ -253,7 +274,8 @@ const getMonthlyAnalytics = async (req, res) => {
     // Thống kê theo ngày trong tháng
     const dailyStats = {};
     orders.forEach((order) => {
-      const day = order.createdAt.getDate();
+      const orderDate = order.orderDate || order.createdAt;
+      const day = orderDate.getDate();
       if (!dailyStats[day]) {
         dailyStats[day] = { revenue: 0, orders: 0 };
       }
@@ -291,8 +313,12 @@ const getQuarterlyAnalytics = async (req, res) => {
     const start = new Date(year, startMonth, 1);
     const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     const totalRevenue = orders.reduce((sum, order) => {
@@ -335,7 +361,10 @@ const getQuarterlyAnalytics = async (req, res) => {
     const prevQuarterEnd = new Date(year, startMonth, 0, 23, 59, 59, 999);
 
     const prevOrders = await Order.find({
-      createdAt: { $gte: prevQuarterStart, $lte: prevQuarterEnd },
+      $or: [
+        { orderDate: { $gte: prevQuarterStart, $lte: prevQuarterEnd } },
+        { orderDate: { $exists: false }, createdAt: { $gte: prevQuarterStart, $lte: prevQuarterEnd } }
+      ]
     });
     const prevRevenue = prevOrders.reduce((sum, order) => {
       if (!order.totalAmount || isNaN(order.totalAmount)) {
@@ -371,8 +400,12 @@ const getYearlyAnalytics = async (req, res) => {
     const start = new Date(year, 0, 1);
     const end = new Date(year, 11, 31, 23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     const totalRevenue = orders.reduce((sum, order) => {
@@ -415,7 +448,10 @@ const getYearlyAnalytics = async (req, res) => {
     const prevYearEnd = new Date(year - 1, 11, 31, 23, 59, 59, 999);
 
     const prevOrders = await Order.find({
-      createdAt: { $gte: prevYearStart, $lte: prevYearEnd },
+      $or: [
+        { orderDate: { $gte: prevYearStart, $lte: prevYearEnd } },
+        { orderDate: { $exists: false }, createdAt: { $gte: prevYearStart, $lte: prevYearEnd } }
+      ]
     });
     const prevRevenue = prevOrders.reduce((sum, order) => {
       if (!order.totalAmount || isNaN(order.totalAmount)) {
@@ -427,7 +463,8 @@ const getYearlyAnalytics = async (req, res) => {
     // Thống kê theo tháng
     const monthlyStats = {};
     orders.forEach((order) => {
-      const month = order.createdAt.getMonth() + 1;
+      const orderDate = order.orderDate || order.createdAt;
+      const month = orderDate.getMonth() + 1;
       if (!monthlyStats[month]) {
         monthlyStats[month] = { revenue: 0, orders: 0 };
       }
@@ -461,8 +498,12 @@ const getPeakHours = async (req, res) => {
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
 
+    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
-      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ]
     });
 
     const hourStats = {};
@@ -471,7 +512,8 @@ const getPeakHours = async (req, res) => {
     }
 
     orders.forEach((order) => {
-      const hour = order.createdAt.getHours();
+      const orderDate = order.orderDate || order.createdAt;
+      const hour = orderDate.getHours();
       hourStats[hour].revenue += order.totalAmount;
       hourStats[hour].orders += 1;
     });
@@ -496,23 +538,35 @@ const getTopProducts = async (req, res) => {
       start.setHours(0, 0, 0, 0);
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: start, $lte: end };
+      query.$or = [
+        { orderDate: { $gte: start, $lte: end } },
+        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+      ];
     } else if (period === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      query.createdAt = { $gte: today, $lt: tomorrow };
+      query.$or = [
+        { orderDate: { $gte: today, $lt: tomorrow } },
+        { orderDate: { $exists: false }, createdAt: { $gte: today, $lt: tomorrow } }
+      ];
     } else if (period === 'week') {
       const today = new Date();
       const weekAgo = new Date(today);
       weekAgo.setDate(weekAgo.getDate() - 7);
-      query.createdAt = { $gte: weekAgo, $lte: today };
+      query.$or = [
+        { orderDate: { $gte: weekAgo, $lte: today } },
+        { orderDate: { $exists: false }, createdAt: { $gte: weekAgo, $lte: today } }
+      ];
     } else if (period === 'month') {
       const today = new Date();
       const monthAgo = new Date(today);
       monthAgo.setMonth(monthAgo.getMonth() - 1);
-      query.createdAt = { $gte: monthAgo, $lte: today };
+      query.$or = [
+        { orderDate: { $gte: monthAgo, $lte: today } },
+        { orderDate: { $exists: false }, createdAt: { $gte: monthAgo, $lte: today } }
+      ];
     }
 
     const orders = await Order.find(query);

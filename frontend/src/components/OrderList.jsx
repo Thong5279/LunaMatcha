@@ -5,6 +5,7 @@ import OrderDetail from './OrderDetail';
 import LoadingSkeleton from './LoadingSkeleton';
 import EmptyState from './EmptyState';
 import { HiClipboardDocumentList } from 'react-icons/hi2';
+import { HiBanknotes, HiCreditCard } from 'react-icons/hi2';
 
 const OrderList = () => {
   const [orders, setOrders] = useState([]);
@@ -111,10 +112,39 @@ const OrderList = () => {
               className="bg-white rounded-lg shadow-md p-4 space-y-3"
             >
               <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-xs text-gray-500">
-                    {formatDate(order.createdAt)}
-                  </p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="text-xs text-gray-500">
+                      {formatDate(order.createdAt)}
+                    </p>
+                    {/* Payment Method Badge */}
+                    {order.paymentMethod && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        order.paymentMethod === 'bank_transfer'
+                          ? 'bg-blue-100 text-blue-700'
+                          : order.paymentMethod === 'exact_amount'
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-700'
+                      }`}>
+                        {order.paymentMethod === 'bank_transfer' ? (
+                          <>
+                            <HiCreditCard className="w-3 h-3" />
+                            Chuyển khoản
+                          </>
+                        ) : order.paymentMethod === 'exact_amount' ? (
+                          <>
+                            <HiBanknotes className="w-3 h-3" />
+                            Đủ tiền
+                          </>
+                        ) : (
+                          <>
+                            <HiBanknotes className="w-3 h-3" />
+                            Tiền mặt
+                          </>
+                        )}
+                      </span>
+                    )}
+                  </div>
                   <p className="font-semibold text-lg mt-1">
                     {new Intl.NumberFormat('vi-VN').format(order.totalAmount)} đ
                   </p>

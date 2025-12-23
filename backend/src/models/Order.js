@@ -71,6 +71,17 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    paymentMethod: {
+      type: String,
+      enum: ['cash', 'bank_transfer', 'exact_amount'],
+      default: 'cash',
+    },
+    orderDate: {
+      type: Date,
+      required: true,
+      // Index để query nhanh hơn
+      index: true,
+    },
   },
   {
     timestamps: true,

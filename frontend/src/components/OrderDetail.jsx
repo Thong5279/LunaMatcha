@@ -296,13 +296,104 @@ const OrderDetail = ({ order, onClose }) => {
             + Thêm món
           </button>
 
-          <div className="pt-4 border-t">
-            <div className="flex justify-between items-center mb-4">
+          <div className="pt-4 border-t space-y-4">
+            {/* Payment Information */}
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+              <h3 className="font-semibold text-lg mb-3">Thông tin thanh toán</h3>
+              
+              {/* Payment Method */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Phương thức thanh toán:</span>
+                <span className="font-semibold">
+                  {order.paymentMethod === 'exact_amount' ? 'Đưa đủ tiền' :
+                   order.paymentMethod === 'bank_transfer' ? 'Chuyển khoản' :
+                   'Tiền mặt'}
+                </span>
+              </div>
+
+              {/* Total Amount */}
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Tổng tiền đơn hàng:</span>
+                <span className="font-semibold text-lg">
+                  {new Intl.NumberFormat('vi-VN').format(order.totalAmount || calculateTotal())} đ
+                </span>
+              </div>
+
+              {/* Customer Paid - chỉ hiển thị khi tiền mặt */}
+              {(order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Khách đưa:</span>
+                    <span className="font-semibold">
+                      {new Intl.NumberFormat('vi-VN').format(order.customerPaid || 0)} đ
+                    </span>
+                  </div>
+                  
+                  {/* Change - chỉ hiển thị khi có thối */}
+                  {order.change > 0 && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600">Tiền thối:</span>
+                      <span className="font-semibold text-green-600">
+                        {new Intl.NumberFormat('vi-VN').format(order.change)} đ
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Bank Transfer Note */}
+              {order.paymentMethod === 'bank_transfer' && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
+                  <p className="text-sm text-blue-700">
+                    Đơn này thanh toán bằng chuyển khoản, không tính vào tiền mặt trong ca làm việc.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Order Items Summary */}
+            <div className="bg-primary rounded-lg p-4">
+              <h3 className="font-semibold text-lg mb-3">Sản phẩm đã mua</h3>
+              <div className="space-y-2">
+                {order.items && order.items.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-start text-sm">
+                    <div className="flex-1">
+                      <p className="font-medium">{item.productName}</p>
+                      <p className="text-gray-600">
+                        Size: {item.size === 'small' ? 'Nhỏ' : 'Lớn'} | 
+                        SL: {item.quantity} | 
+                        Đá: {item.iceType === 'common' ? 'Chung' : item.iceType === 'separate' ? 'Riêng' : 'Không đá'}
+                      </p>
+                      {item.toppings && item.toppings.length > 0 && (
+                        <p className="text-gray-500 text-xs">
+                          Topping: {item.toppings.map(t => t.toppingName).join(', ')}
+                        </p>
+                      )}
+                      {item.note && (
+                        <p className="text-gray-500 text-xs italic">Ghi chú: {item.note}</p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">
+                        {new Intl.NumberFormat('vi-VN').format(
+                          (item.price * item.quantity) + 
+                          (item.toppings ? item.toppings.reduce((sum, t) => sum + (t.price * item.quantity), 0) : 0)
+                        )} đ
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Total */}
+            <div className="flex justify-between items-center">
               <span className="font-semibold text-lg">Tổng cộng:</span>
               <span className="font-bold text-xl text-green-600">
-                {new Intl.NumberFormat('vi-VN').format(calculateTotal())} đ
+                {new Intl.NumberFormat('vi-VN').format(order.totalAmount || calculateTotal())} đ
               </span>
             </div>
+            
             <button
               onClick={handleSave}
               disabled={loading || items.length === 0}

@@ -17,41 +17,76 @@ const getOrCreateShift = async (req, res) => {
       const endOfDay = new Date(targetDate);
       endOfDay.setHours(23, 59, 59, 999);
 
+      // Query orders theo orderDate hoặc createdAt (cho orders cũ)
       const orders = await Order.find({
-        createdAt: { $gte: startOfDay, $lte: endOfDay },
+        $or: [
+          { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+          { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ]
       });
 
-      const endAmount = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+      // Tính tiền mặt (chỉ từ cash và exact_amount orders)
+      const cashAmount = orders.reduce((sum, o) => {
+        if ((o.paymentMethod === 'cash' || o.paymentMethod === 'exact_amount' || !o.paymentMethod) && 
+            o.totalAmount && !isNaN(o.totalAmount)) {
+          return sum + o.totalAmount;
+        }
+        return sum;
+      }, 0);
+
+      // Tính chuyển khoản
+      const bankTransferAmount = orders.reduce((sum, o) => {
+        if (o.paymentMethod === 'bank_transfer' && o.totalAmount && !isNaN(o.totalAmount)) {
+          return sum + o.totalAmount;
+        }
+        return sum;
+      }, 0);
 
       shift = new DailyShift({
         date: targetDate,
         startAmount: 0,
-        endAmount,
-        netAmount: endAmount,
+        cashAmount,
+        bankTransferAmount,
+        endAmount: cashAmount, // endAmount = chỉ tiền mặt
+        netAmount: cashAmount,
         orders: orders.map((o) => o._id),
       });
       await shift.save();
     } else {
-      // LUÔN tính lại endAmount từ orders thực tế trong DB để đảm bảo chính xác
+      // LUÔN tính lại từ orders thực tế trong DB để đảm bảo chính xác
       const startOfDay = new Date(targetDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(targetDate);
       endOfDay.setHours(23, 59, 59, 999);
 
+      // Query orders theo orderDate hoặc createdAt (cho orders cũ)
       const orders = await Order.find({
-        createdAt: { $gte: startOfDay, $lte: endOfDay },
+        $or: [
+          { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+          { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ]
       });
 
-      // Tính lại tổng doanh thu từ orders
-      const calculatedEndAmount = orders.reduce((sum, order) => {
-        if (!order.totalAmount || isNaN(order.totalAmount)) {
-          console.warn(`Order ${order._id} có totalAmount không hợp lệ:`, order.totalAmount);
-          return sum;
+      // Tính tiền mặt (chỉ từ cash và exact_amount orders)
+      const cashAmount = orders.reduce((sum, o) => {
+        if ((o.paymentMethod === 'cash' || o.paymentMethod === 'exact_amount' || !o.paymentMethod) && 
+            o.totalAmount && !isNaN(o.totalAmount)) {
+          return sum + o.totalAmount;
         }
-        return sum + order.totalAmount;
+        return sum;
       }, 0);
 
-      shift.endAmount = calculatedEndAmount;
+      // Tính chuyển khoản
+      const bankTransferAmount = orders.reduce((sum, o) => {
+        if (o.paymentMethod === 'bank_transfer' && o.totalAmount && !isNaN(o.totalAmount)) {
+          return sum + o.totalAmount;
+        }
+        return sum;
+      }, 0);
+
+      shift.cashAmount = cashAmount;
+      shift.bankTransferAmount = bankTransferAmount;
+      shift.endAmount = cashAmount; // endAmount = chỉ tiền mặt
       shift.netAmount = shift.endAmount - shift.startAmount;
       shift.orders = orders.map((o) => o._id);
       await shift.save();

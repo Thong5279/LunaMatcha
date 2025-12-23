@@ -78,12 +78,13 @@ const SellMode = ({ onComplete }) => {
     setShowChangeCalculator(true);
   };
 
-  const handleConfirmOrder = async (customerPaid, change) => {
+  const handleConfirmOrder = async (customerPaid, change, paymentMethod) => {
     try {
       const orderData = {
         items: cart,
         customerPaid,
         change,
+        paymentMethod: paymentMethod || 'cash',
       };
 
       await orderService.create(orderData);
