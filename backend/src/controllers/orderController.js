@@ -37,12 +37,12 @@ const createOrder = async (req, res) => {
       return res.status(400).json({ message: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
     }
 
-    // Tính tổng tiền
+    // Tính tổng tiền - đảm bảo tính đúng cả topping
     let totalAmount = 0;
     items.forEach((item) => {
-      const itemTotal = item.price * item.quantity;
-      const toppingTotal = item.toppings
-        ? item.toppings.reduce((sum, topping) => sum + topping.price, 0) * item.quantity
+      const itemTotal = (item.price || 0) * (item.quantity || 0);
+      const toppingTotal = item.toppings && item.toppings.length > 0
+        ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
         : 0;
       totalAmount += itemTotal + toppingTotal;
     });
@@ -84,7 +84,16 @@ const createOrder = async (req, res) => {
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       });
 
-      shift.endAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+      // Tính lại tổng doanh thu từ orders, đảm bảo tính đúng
+      const calculatedEndAmount = orders.reduce((sum, o) => {
+        if (!o.totalAmount || isNaN(o.totalAmount)) {
+          console.warn(`Order ${o._id} có totalAmount không hợp lệ:`, o.totalAmount);
+          return sum;
+        }
+        return sum + o.totalAmount;
+      }, 0);
+
+      shift.endAmount = calculatedEndAmount;
       shift.netAmount = shift.endAmount - shift.startAmount;
       shift.orders = orders.map((o) => o._id);
       await shift.save();
@@ -111,12 +120,12 @@ const updateOrder = async (req, res) => {
     }
 
     if (items && Array.isArray(items) && items.length > 0) {
-      // Tính lại tổng tiền
+      // Tính lại tổng tiền - đảm bảo tính đúng cả topping
       let totalAmount = 0;
       items.forEach((item) => {
-        const itemTotal = item.price * item.quantity;
-        const toppingTotal = item.toppings
-          ? item.toppings.reduce((sum, topping) => sum + topping.price, 0) * item.quantity
+        const itemTotal = (item.price || 0) * (item.quantity || 0);
+        const toppingTotal = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
           : 0;
         totalAmount += itemTotal + toppingTotal;
       });
@@ -143,7 +152,16 @@ const updateOrder = async (req, res) => {
           createdAt: { $gte: startOfDay, $lte: endOfDay },
         });
 
-        shift.endAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+        // Tính lại tổng doanh thu từ orders
+        const calculatedEndAmount = orders.reduce((sum, o) => {
+          if (!o.totalAmount || isNaN(o.totalAmount)) {
+            console.warn(`Order ${o._id} có totalAmount không hợp lệ:`, o.totalAmount);
+            return sum;
+          }
+          return sum + o.totalAmount;
+        }, 0);
+
+        shift.endAmount = calculatedEndAmount;
         shift.netAmount = shift.endAmount - shift.startAmount;
         shift.orders = orders.map((o) => o._id);
         await shift.save();
@@ -186,7 +204,16 @@ const deleteOrder = async (req, res) => {
           createdAt: { $gte: startOfDay, $lte: endOfDay },
         });
 
-        shift.endAmount = orders.reduce((sum, o) => sum + o.totalAmount, 0);
+        // Tính lại tổng doanh thu từ orders
+        const calculatedEndAmount = orders.reduce((sum, o) => {
+          if (!o.totalAmount || isNaN(o.totalAmount)) {
+            console.warn(`Order ${o._id} có totalAmount không hợp lệ:`, o.totalAmount);
+            return sum;
+          }
+          return sum + o.totalAmount;
+        }, 0);
+
+        shift.endAmount = calculatedEndAmount;
         shift.netAmount = shift.endAmount - shift.startAmount;
         shift.orders = orders.map((o) => o._id);
         await shift.save();

@@ -1,34 +1,83 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { HiChevronLeft } from 'react-icons/hi2';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { HiChevronLeft, HiArrowPath } from 'react-icons/hi2';
 import { dailyShiftService } from '../services/dailyShiftService';
+import CelebrationModal from '../components/CelebrationModal';
 import showToast from '../utils/toast';
+import { getTodayDate, isToday as isTodayHelper } from '../utils/dateHelper';
 
 const DailyShift = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [shift, setShift] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [editingStartAmount, setEditingStartAmount] = useState(false);
   const [startAmount, setStartAmount] = useState('');
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => getTodayDate());
+  const [showCelebration, setShowCelebration] = useState(false);
+  const intervalRef = useRef(null);
+
+  // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
+  useEffect(() => {
+    if (location.pathname === '/shift') {
+      const today = getTodayDate();
+      setSelectedDate(today);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Chỉ chạy một lần khi component mount
+
+  const isToday = () => {
+    return isTodayHelper(selectedDate);
+  };
+
+  const fetchShift = async (silent = false) => {
+    try {
+      if (!silent) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
+      const response = await dailyShiftService.getOrCreate(selectedDate);
+      const shiftData = response.data;
+      setShift(shiftData);
+      setStartAmount(shiftData.startAmount.toString());
+    } catch (error) {
+      if (!silent) {
+        showToast.error('Lỗi khi tải dữ liệu ca làm việc');
+      }
+      console.error(error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     fetchShift();
   }, [selectedDate]);
 
-  const fetchShift = async () => {
-    try {
-      setLoading(true);
-      const response = await dailyShiftService.getOrCreate(selectedDate);
-      setShift(response.data);
-      setStartAmount(response.data.startAmount.toString());
-    } catch (error) {
-      showToast.error('Lỗi khi tải dữ liệu ca làm việc');
-      console.error(error);
-    } finally {
-      setLoading(false);
+  // Real-time polling for today's shift
+  useEffect(() => {
+    // Only poll if selected date is today and we're on this page
+    if (isToday() && location.pathname === '/shift') {
+      intervalRef.current = setInterval(() => {
+        fetchShift(true); // Silent refresh
+      }, 5000); // Poll every 5 seconds
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+      };
+    } else {
+      // Clear interval if not today or not on this page
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
     }
-  };
+  }, [selectedDate, location.pathname]);
 
   const handleUpdateStartAmount = async () => {
     try {
@@ -39,6 +88,26 @@ const DailyShift = () => {
     } catch (error) {
       showToast.error('Lỗi khi cập nhật tiền đầu ca');
       console.error(error);
+    }
+  };
+
+  // Xử lý khi bấm vào linh vật
+  const handleMascotClick = () => {
+    const today = getTodayDate();
+    console.log('🎯 Mascot clicked:', { 
+      selectedDate, 
+      today, 
+      isToday: isToday(), 
+      shiftEndAmount: shift?.endAmount,
+      shift: shift ? 'exists' : 'null'
+    });
+    
+    if (isToday() && shift && shift.endAmount >= 200000) {
+      setShowCelebration(true);
+    } else if (!isToday()) {
+      showToast.info(`Chỉ có thể xem celebration cho ngày hôm nay (${today}). Ngày đã chọn: ${selectedDate}`);
+    } else if (!shift || shift.endAmount < 200000) {
+      showToast.info(`Chưa đạt mốc 200k để xem celebration. Doanh thu hiện tại: ${shift?.endAmount || 0} đ`);
     }
   };
 
@@ -63,6 +132,27 @@ const DailyShift = () => {
             <HiChevronLeft className="w-6 h-6" />
           </button>
           <h1 className="text-xl font-bold flex-1 text-accent-dark">Ca làm việc</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchShift(false)}
+              disabled={refreshing}
+              className="text-accent hover:text-accent-dark disabled:opacity-50"
+              aria-label="Làm mới"
+            >
+              <HiArrowPath className={`w-6 h-6 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={handleMascotClick}
+              className="cursor-pointer hover:scale-110 transition-transform"
+              aria-label="Xem celebration"
+            >
+              <img
+                src="https://media.tenor.com/G_ar9s-uj64AAAAi/psybirdb1oom.gif"
+                alt="Mascot"
+                className="w-12 h-12 object-contain"
+              />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -198,6 +288,14 @@ const DailyShift = () => {
           </>
         )}
       </div>
+
+      {/* Celebration Modal */}
+      {showCelebration && shift && isToday() && shift.endAmount >= 200000 && (
+        <CelebrationModal
+          revenue={shift.endAmount}
+          onClose={() => setShowCelebration(false)}
+        />
+      )}
     </div>
   );
 };

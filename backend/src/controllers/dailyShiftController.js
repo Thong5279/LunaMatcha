@@ -32,7 +32,7 @@ const getOrCreateShift = async (req, res) => {
       });
       await shift.save();
     } else {
-      // Cập nhật endAmount từ orders
+      // LUÔN tính lại endAmount từ orders thực tế trong DB để đảm bảo chính xác
       const startOfDay = new Date(targetDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(targetDate);
@@ -42,7 +42,16 @@ const getOrCreateShift = async (req, res) => {
         createdAt: { $gte: startOfDay, $lte: endOfDay },
       });
 
-      shift.endAmount = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+      // Tính lại tổng doanh thu từ orders
+      const calculatedEndAmount = orders.reduce((sum, order) => {
+        if (!order.totalAmount || isNaN(order.totalAmount)) {
+          console.warn(`Order ${order._id} có totalAmount không hợp lệ:`, order.totalAmount);
+          return sum;
+        }
+        return sum + order.totalAmount;
+      }, 0);
+
+      shift.endAmount = calculatedEndAmount;
       shift.netAmount = shift.endAmount - shift.startAmount;
       shift.orders = orders.map((o) => o._id);
       await shift.save();

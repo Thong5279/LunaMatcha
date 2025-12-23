@@ -1,12 +1,19 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { HiChevronLeft } from 'react-icons/hi2';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { HiChevronLeft, HiArrowPath } from 'react-icons/hi2';
 import { analyticsService } from '../services/analyticsService';
+import CelebrationModal from '../components/CelebrationModal';
+import { dailyShiftService } from '../services/dailyShiftService';
+import showToast from '../utils/toast';
+import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper } from '../utils/dateHelper';
 import {
   LineChart,
   Line,
   BarChart,
   Bar,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -14,25 +21,59 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import showToast from '../utils/toast';
 
 const Analytics = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [period, setPeriod] = useState('daily');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [month, setMonth] = useState(
-    new Date().toISOString().slice(0, 7)
-  );
-  const [year, setYear] = useState(new Date().getFullYear().toString());
+  const [date, setDate] = useState(() => getTodayDate());
+  const [month, setMonth] = useState(() => getCurrentMonth());
+  const [year, setYear] = useState(() => getCurrentYear());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [todayRevenue, setTodayRevenue] = useState(0);
+  const intervalRef = useRef(null);
 
+  // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
   useEffect(() => {
-    fetchAnalytics();
-  }, [period, date, month, year]);
+    const today = getTodayDate();
+    const currentMonth = getCurrentMonth();
+    const currentYear = getCurrentYear();
+    
+    // Chỉ reset nếu đang ở trang analytics và chưa có giá trị
+    if (location.pathname === '/analytics') {
+      // Reset về ngày hôm nay nếu đang ở period daily
+      if (period === 'daily') {
+        setDate(today);
+      }
+      // Reset về tháng hiện tại nếu đang ở period monthly
+      if (period === 'monthly') {
+        setMonth(currentMonth);
+      }
+      // Reset về năm hiện tại nếu đang ở period yearly
+      if (period === 'yearly') {
+        setYear(currentYear);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Chỉ chạy một lần khi component mount
 
-  const fetchAnalytics = async () => {
-    setLoading(true);
+  const isToday = () => {
+    return isTodayHelper(date);
+  };
+
+  const shouldPoll = () => {
+    return period === 'daily' && isToday() && location.pathname === '/analytics';
+  };
+
+  const fetchAnalytics = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
     try {
       let response;
       switch (period) {
@@ -60,12 +101,40 @@ const Analytics = () => {
       }
       setData(response.data);
     } catch (error) {
-      showToast.error('Lỗi khi tải dữ liệu thống kê');
+      if (!silent) {
+        showToast.error('Lỗi khi tải dữ liệu thống kê');
+      }
       console.error(error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, [period, date, month, year]);
+
+  // Real-time polling for daily analytics (today only)
+  useEffect(() => {
+    if (shouldPoll()) {
+      intervalRef.current = setInterval(() => {
+        fetchAnalytics(true); // Silent refresh
+      }, 5000); // Poll every 5 seconds
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+      };
+    } else {
+      // Clear interval if conditions not met
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }
+  }, [period, date, location.pathname]);
 
   const getWeekNumber = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -79,6 +148,29 @@ const Analytics = () => {
 
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
+  };
+
+  // Xử lý khi bấm vào linh vật
+  const handleMascotClick = async () => {
+    try {
+      const today = getTodayDate();
+      console.log('🎯 Mascot clicked in Analytics:', { today, currentDate: date });
+      const response = await dailyShiftService.getOrCreate(today);
+      const shiftData = response.data;
+      const revenue = shiftData.endAmount || 0;
+
+      console.log('📊 Revenue data:', { revenue, shiftData });
+
+      if (revenue >= 200000) {
+        setTodayRevenue(revenue);
+        setShowCelebration(true);
+      } else {
+        showToast.info(`Chưa đạt mốc 200k để xem celebration. Doanh thu hiện tại: ${revenue.toLocaleString('vi-VN')} đ`);
+      }
+    } catch (error) {
+      console.error('Lỗi khi lấy dữ liệu doanh thu:', error);
+      showToast.error('Lỗi khi tải dữ liệu');
+    }
   };
 
   if (loading) {
@@ -98,6 +190,27 @@ const Analytics = () => {
             <HiChevronLeft className="w-6 h-6" />
           </button>
           <h1 className="text-xl font-bold flex-1">Thống kê</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchAnalytics(false)}
+              disabled={refreshing}
+              className="text-accent hover:text-accent-dark disabled:opacity-50"
+              aria-label="Làm mới"
+            >
+              <HiArrowPath className={`w-6 h-6 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={handleMascotClick}
+              className="cursor-pointer hover:scale-110 transition-transform"
+              aria-label="Xem celebration"
+            >
+              <img
+                src="https://media.tenor.com/G_ar9s-uj64AAAAi/psybirdb1oom.gif"
+                alt="Mascot"
+                className="w-12 h-12 object-contain"
+              />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -169,30 +282,59 @@ const Analytics = () => {
               </div>
             </div>
 
+            {/* Additional Stats for Daily */}
+            {period === 'daily' && (
+              <div className="grid grid-cols-2 gap-3">
+                {data.totalItems !== undefined && (
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <p className="text-sm text-gray-600 mb-1">Số lượng sản phẩm</p>
+                    <p className="text-xl font-bold">{data.totalItems || 0}</p>
+                  </div>
+                )}
+                {data.totalOrders > 0 && (
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <p className="text-sm text-gray-600 mb-1">Đơn hàng trung bình</p>
+                    <p className="text-xl font-bold text-accent">
+                      {formatCurrency(Math.round((data.totalRevenue || 0) / data.totalOrders))}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Comparison */}
             {data.revenueChange !== undefined && (
               <div className="bg-white rounded-lg p-4 shadow">
-                <p className="text-sm text-gray-600 mb-2">So với kỳ trước</p>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`text-lg font-bold ${
-                      data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {data.revenueChange >= 0 ? '+' : ''}
-                    {formatCurrency(data.revenueChange)}
-                  </span>
-                  {data.revenueChangePercent !== undefined && (
+                <p className="text-sm text-gray-600 mb-2">
+                  {period === 'daily' ? 'So với ngày hôm qua' : 'So với kỳ trước'}
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`text-sm ${
-                        data.revenueChangePercent >= 0
-                          ? 'text-green-600'
-                          : 'text-red-600'
+                      className={`text-lg font-bold ${
+                        data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}
                     >
-                      ({data.revenueChangePercent >= 0 ? '+' : ''}
-                      {data.revenueChangePercent.toFixed(1)}%)
+                      {data.revenueChange >= 0 ? '+' : ''}
+                      {formatCurrency(data.revenueChange)}
                     </span>
+                    {data.revenueChangePercent !== undefined && (
+                      <span
+                        className={`text-sm ${
+                          data.revenueChangePercent >= 0
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}
+                      >
+                        ({data.revenueChangePercent >= 0 ? '+' : ''}
+                        {data.revenueChangePercent.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                  {period === 'daily' && data.previousDayRevenue !== undefined && (
+                    <p className="text-xs text-gray-500">
+                      Ngày hôm qua: {formatCurrency(data.previousDayRevenue)}
+                    </p>
                   )}
                 </div>
               </div>
@@ -246,10 +388,49 @@ const Analytics = () => {
               </div>
             )}
 
-            {/* Top Products */}
+            {/* Top Products with Pie Chart */}
             {data.topProducts && data.topProducts.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-4">Sản phẩm bán chạy</h3>
+                
+                {/* Pie Chart */}
+                <div className="mb-4">
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie
+                        data={data.topProducts.slice(0, 8).map((product) => ({
+                          name: product.productName,
+                          value: product.quantity,
+                          revenue: product.revenue,
+                        }))}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {data.topProducts.slice(0, 8).map((entry, index) => {
+                          const colors = [
+                            '#7A9A6E', '#A8C090', '#DEE9CB', '#C4D4B0',
+                            '#8EAA78', '#B8D0A0', '#62805A', '#98B080'
+                          ];
+                          return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                        })}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value, name, props) => [
+                          `${value} cái (${formatCurrency(props.payload.revenue)})`,
+                          'Số lượng'
+                        ]}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Product List */}
                 <div className="space-y-2">
                   {data.topProducts.slice(0, 10).map((product, index) => (
                     <div
@@ -274,6 +455,14 @@ const Analytics = () => {
           </>
         )}
       </div>
+
+      {/* Celebration Modal */}
+      {showCelebration && todayRevenue >= 200000 && (
+        <CelebrationModal
+          revenue={todayRevenue}
+          onClose={() => setShowCelebration(false)}
+        />
+      )}
     </div>
   );
 };

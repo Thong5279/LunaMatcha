@@ -112,26 +112,26 @@ const ProductList = ({ onProductSelect, isSelectMode = false, selectedProducts =
               isSelected={selectedProducts.some((p) => p._id === product._id)}
             />
             {!isSelectMode && (
-              <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="absolute top-2 right-2 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleEdit(product);
                   }}
-                  className="bg-secondary text-white p-2 rounded-full shadow-lg hover:bg-secondary-dark"
+                  className="bg-secondary text-white p-2.5 rounded-full shadow-lg hover:bg-secondary-dark active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center border-2 border-white"
                   aria-label="Sửa"
                 >
-                  <HiPencil className="w-4 h-4" />
+                  <HiPencil className="w-5 h-5" />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDelete(product._id);
                   }}
-                  className="bg-red-500 text-white p-2 rounded-full shadow-lg hover:bg-red-600"
+                  className="bg-red-500 text-white p-2.5 rounded-full shadow-lg hover:bg-red-600 active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center border-2 border-white"
                   aria-label="Xóa"
                 >
-                  <HiTrash className="w-4 h-4" />
+                  <HiTrash className="w-5 h-5" />
                 </button>
               </div>
             )}

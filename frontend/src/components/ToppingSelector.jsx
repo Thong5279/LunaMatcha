@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { HiXMark } from 'react-icons/hi2';
+import { HiXMark, HiChevronDown } from 'react-icons/hi2';
 
 const ToppingSelector = ({ product, toppings, onAdd, onClose }) => {
   const [size, setSize] = useState('small');
@@ -7,6 +7,7 @@ const ToppingSelector = ({ product, toppings, onAdd, onClose }) => {
   const [iceType, setIceType] = useState('common');
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [note, setNote] = useState('');
+  const [showToppings, setShowToppings] = useState(false);
 
   const handleToppingToggle = (topping) => {
     setSelectedToppings((prev) => {
@@ -140,28 +141,47 @@ const ToppingSelector = ({ product, toppings, onAdd, onClose }) => {
           {/* Toppings */}
           {toppings.length > 0 && (
             <div>
-              <label className="block text-sm font-medium mb-2">Topping</label>
-              <div className="space-y-2">
-                {toppings.map((topping) => {
-                  const isSelected = selectedToppings.some((t) => t._id === topping._id);
-                  return (
-                    <button
-                      key={topping._id}
-                      onClick={() => handleToppingToggle(topping)}
-                      className={`w-full p-3 rounded-lg border-2 text-left flex justify-between items-center transition-all ${
-                        isSelected
-                          ? 'border-accent bg-primary'
-                          : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      <span className="font-medium">{topping.name}</span>
-                      <span className="text-sm text-gray-600">
-                        +{new Intl.NumberFormat('vi-VN').format(topping.price)} đ
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+              <button
+                onClick={() => setShowToppings(!showToppings)}
+                className="w-full flex justify-between items-center p-3 rounded-lg border-2 border-gray-300 bg-white hover:bg-gray-50 transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Topping</span>
+                  {selectedToppings.length > 0 && (
+                    <span className="bg-accent text-white text-xs px-2 py-1 rounded-full">
+                      {selectedToppings.length}
+                    </span>
+                  )}
+                </div>
+                <HiChevronDown
+                  className={`w-5 h-5 text-gray-600 transition-transform duration-200 ${
+                    showToppings ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+              {showToppings && (
+                <div className="mt-2 space-y-2 animate-fadeIn">
+                  {toppings.map((topping) => {
+                    const isSelected = selectedToppings.some((t) => t._id === topping._id);
+                    return (
+                      <button
+                        key={topping._id}
+                        onClick={() => handleToppingToggle(topping)}
+                        className={`w-full p-3 rounded-lg border-2 text-left flex justify-between items-center transition-all ${
+                          isSelected
+                            ? 'border-accent bg-primary'
+                            : 'border-gray-200 bg-white'
+                        }`}
+                      >
+                        <span className="font-medium">{topping.name}</span>
+                        <span className="text-sm text-gray-600">
+                          +{new Intl.NumberFormat('vi-VN').format(topping.price)} đ
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

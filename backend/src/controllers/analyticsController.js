@@ -18,13 +18,21 @@ const getDailyAnalytics = async (req, res) => {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    // Tính tổng doanh thu - đảm bảo tính đúng
+    const totalRevenue = orders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        console.warn(`Order ${order._id} có totalAmount không hợp lệ:`, order.totalAmount);
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
+    
     const totalOrders = orders.length;
     const totalItems = orders.reduce((sum, order) => {
-      return sum + order.items.reduce((itemSum, item) => itemSum + item.quantity, 0);
+      return sum + order.items.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0);
     }, 0);
 
-    // Top sản phẩm
+    // Top sản phẩm - tính revenue bao gồm cả topping của item đó
     const productStats = {};
     orders.forEach((order) => {
       order.items.forEach((item) => {
@@ -36,14 +44,43 @@ const getDailyAnalytics = async (req, res) => {
             revenue: 0,
           };
         }
-        productStats[item.productId].quantity += item.quantity;
-        productStats[item.productId].revenue += item.price * item.quantity;
+        productStats[item.productId].quantity += item.quantity || 0;
+        
+        // Tính revenue: giá sản phẩm + topping của item đó
+        const itemRevenue = (item.price || 0) * (item.quantity || 0);
+        const itemToppingRevenue = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        productStats[item.productId].revenue += itemRevenue + itemToppingRevenue;
       });
     });
 
     const topProducts = Object.values(productStats)
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10);
+
+    // So sánh với ngày hôm qua
+    const yesterday = new Date(start);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    const yesterdayEnd = new Date(yesterday);
+    yesterdayEnd.setHours(23, 59, 59, 999);
+
+    const yesterdayOrders = await Order.find({
+      createdAt: { $gte: yesterday, $lte: yesterdayEnd },
+    });
+
+    const previousDayRevenue = yesterdayOrders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
+
+    const revenueChange = totalRevenue - previousDayRevenue;
+    const revenueChangePercent = previousDayRevenue > 0 
+      ? ((totalRevenue - previousDayRevenue) / previousDayRevenue) * 100 
+      : (totalRevenue > 0 ? 100 : 0);
 
     res.json({
       date,
@@ -52,6 +89,9 @@ const getDailyAnalytics = async (req, res) => {
       totalItems,
       topProducts,
       orders,
+      previousDayRevenue,
+      revenueChange,
+      revenueChangePercent,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -78,8 +118,40 @@ const getWeeklyAnalytics = async (req, res) => {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
     const totalOrders = orders.length;
+
+    // Top sản phẩm
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity || 0;
+        
+        // Tính revenue: giá sản phẩm + topping của item đó
+        const itemRevenue = (item.price || 0) * (item.quantity || 0);
+        const itemToppingRevenue = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        productStats[item.productId].revenue += itemRevenue + itemToppingRevenue;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
 
     // So sánh với tuần trước
     const prevWeekStart = new Date(start);
@@ -90,7 +162,12 @@ const getWeeklyAnalytics = async (req, res) => {
     const prevOrders = await Order.find({
       createdAt: { $gte: prevWeekStart, $lte: prevWeekEnd },
     });
-    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const prevRevenue = prevOrders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
 
     res.json({
       week,
@@ -98,6 +175,7 @@ const getWeeklyAnalytics = async (req, res) => {
       endDate: end,
       totalRevenue,
       totalOrders,
+      topProducts,
       previousWeekRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
@@ -123,8 +201,40 @@ const getMonthlyAnalytics = async (req, res) => {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
     const totalOrders = orders.length;
+
+    // Top sản phẩm
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity || 0;
+        
+        // Tính revenue: giá sản phẩm + topping của item đó
+        const itemRevenue = (item.price || 0) * (item.quantity || 0);
+        const itemToppingRevenue = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        productStats[item.productId].revenue += itemRevenue + itemToppingRevenue;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
 
     // So sánh với tháng trước
     const prevMonthStart = new Date(year, monthNum - 2, 1);
@@ -133,7 +243,12 @@ const getMonthlyAnalytics = async (req, res) => {
     const prevOrders = await Order.find({
       createdAt: { $gte: prevMonthStart, $lte: prevMonthEnd },
     });
-    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const prevRevenue = prevOrders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
 
     // Thống kê theo ngày trong tháng
     const dailyStats = {};
@@ -142,7 +257,7 @@ const getMonthlyAnalytics = async (req, res) => {
       if (!dailyStats[day]) {
         dailyStats[day] = { revenue: 0, orders: 0 };
       }
-      dailyStats[day].revenue += order.totalAmount;
+      dailyStats[day].revenue += order.totalAmount || 0;
       dailyStats[day].orders += 1;
     });
 
@@ -152,6 +267,7 @@ const getMonthlyAnalytics = async (req, res) => {
       endDate: end,
       totalRevenue,
       totalOrders,
+      topProducts,
       previousMonthRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
@@ -179,8 +295,40 @@ const getQuarterlyAnalytics = async (req, res) => {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
     const totalOrders = orders.length;
+
+    // Top sản phẩm
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity || 0;
+        
+        // Tính revenue: giá sản phẩm + topping của item đó
+        const itemRevenue = (item.price || 0) * (item.quantity || 0);
+        const itemToppingRevenue = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        productStats[item.productId].revenue += itemRevenue + itemToppingRevenue;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
 
     // So sánh với quý trước
     const prevQuarterStart = new Date(year, startMonth - 3, 1);
@@ -189,7 +337,12 @@ const getQuarterlyAnalytics = async (req, res) => {
     const prevOrders = await Order.find({
       createdAt: { $gte: prevQuarterStart, $lte: prevQuarterEnd },
     });
-    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const prevRevenue = prevOrders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
 
     res.json({
       quarter,
@@ -197,6 +350,7 @@ const getQuarterlyAnalytics = async (req, res) => {
       endDate: end,
       totalRevenue,
       totalOrders,
+      topProducts,
       previousQuarterRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
@@ -221,8 +375,40 @@ const getYearlyAnalytics = async (req, res) => {
       createdAt: { $gte: start, $lte: end },
     });
 
-    const totalRevenue = orders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalRevenue = orders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
     const totalOrders = orders.length;
+
+    // Top sản phẩm
+    const productStats = {};
+    orders.forEach((order) => {
+      order.items.forEach((item) => {
+        if (!productStats[item.productId]) {
+          productStats[item.productId] = {
+            productId: item.productId,
+            productName: item.productName,
+            quantity: 0,
+            revenue: 0,
+          };
+        }
+        productStats[item.productId].quantity += item.quantity || 0;
+        
+        // Tính revenue: giá sản phẩm + topping của item đó
+        const itemRevenue = (item.price || 0) * (item.quantity || 0);
+        const itemToppingRevenue = item.toppings && item.toppings.length > 0
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          : 0;
+        productStats[item.productId].revenue += itemRevenue + itemToppingRevenue;
+      });
+    });
+
+    const topProducts = Object.values(productStats)
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
 
     // So sánh với năm trước
     const prevYearStart = new Date(year - 1, 0, 1);
@@ -231,7 +417,12 @@ const getYearlyAnalytics = async (req, res) => {
     const prevOrders = await Order.find({
       createdAt: { $gte: prevYearStart, $lte: prevYearEnd },
     });
-    const prevRevenue = prevOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const prevRevenue = prevOrders.reduce((sum, order) => {
+      if (!order.totalAmount || isNaN(order.totalAmount)) {
+        return sum;
+      }
+      return sum + order.totalAmount;
+    }, 0);
 
     // Thống kê theo tháng
     const monthlyStats = {};
@@ -240,7 +431,7 @@ const getYearlyAnalytics = async (req, res) => {
       if (!monthlyStats[month]) {
         monthlyStats[month] = { revenue: 0, orders: 0 };
       }
-      monthlyStats[month].revenue += order.totalAmount;
+      monthlyStats[month].revenue += order.totalAmount || 0;
       monthlyStats[month].orders += 1;
     });
 
@@ -250,6 +441,7 @@ const getYearlyAnalytics = async (req, res) => {
       endDate: end,
       totalRevenue,
       totalOrders,
+      topProducts,
       previousYearRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
