@@ -39,7 +39,7 @@ const getOrders = async (req, res) => {
 // Tạo đơn hàng mới
 const createOrder = async (req, res) => {
   try {
-    const { items, customerPaid, change, paymentMethod } = req.body;
+    const { items, customerPaid, change, paymentMethod, orderDate } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
@@ -71,9 +71,18 @@ const createOrder = async (req, res) => {
     }
     // Nếu là 'cash', giữ nguyên giá trị từ req.body
 
-    // Set orderDate = ngày hôm nay (local time)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Parse orderDate từ frontend (YYYY-MM-DD) và tạo Date object đúng timezone
+    // Nếu không có orderDate từ frontend, dùng ngày hôm nay
+    let targetOrderDate;
+    if (orderDate && typeof orderDate === 'string') {
+      // Parse YYYY-MM-DD string và tạo Date object với timezone local
+      const [year, month, day] = orderDate.split('-').map(Number);
+      targetOrderDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+    } else {
+      // Fallback: dùng ngày hôm nay
+      targetOrderDate = new Date();
+      targetOrderDate.setHours(0, 0, 0, 0);
+    }
 
     const order = new Order({
       items,
@@ -81,7 +90,7 @@ const createOrder = async (req, res) => {
       customerPaid: finalCustomerPaid,
       change: finalChange,
       paymentMethod: finalPaymentMethod,
-      orderDate: today,
+      orderDate: targetOrderDate,
     });
 
     await order.save();

@@ -82,12 +82,12 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-end">
-      <div className="bg-white rounded-t-2xl w-full max-h-[80vh] overflow-y-auto mb-20">
-        <div className="sticky top-0 bg-white border-b border-primary-dark px-4 py-4">
+      <div className="bg-white rounded-t-2xl w-full max-h-[85vh] overflow-y-auto mb-20">
+        <div className="sticky top-0 bg-white border-b border-primary-dark px-4 py-4 z-10">
           <h2 className="text-xl font-bold text-accent-dark">Thanh toán</h2>
         </div>
 
-        <div className="p-4 space-y-4 pb-24">
+        <div className="p-4 space-y-4 pb-32">
           {/* Total Amount */}
           <div className="bg-primary rounded-lg p-4">
             <p className="text-sm text-gray-600 mb-1">Tổng tiền đơn hàng</p>

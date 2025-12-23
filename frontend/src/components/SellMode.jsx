@@ -80,11 +80,19 @@ const SellMode = ({ onComplete }) => {
 
   const handleConfirmOrder = async (customerPaid, change, paymentMethod) => {
     try {
+      // Lấy ngày hôm nay theo local time (YYYY-MM-DD)
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const orderDate = `${year}-${month}-${day}`;
+
       const orderData = {
         items: cart,
         customerPaid,
         change,
         paymentMethod: paymentMethod || 'cash',
+        orderDate, // Gửi orderDate từ frontend để đảm bảo đúng timezone
       };
 
       await orderService.create(orderData);

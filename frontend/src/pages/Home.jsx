@@ -47,7 +47,7 @@ const Home = () => {
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img 
-              src="/img/LogoLuna.jpg" 
+              src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766524914/NTcxZGRmMzhiNzE0Mzg0YTYxMDVfd2U3YXNw.jpg" 
               alt="Luna Matcha" 
               className="w-10 h-10 rounded-full object-cover"
             />
