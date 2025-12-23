@@ -388,13 +388,45 @@ const Analytics = () => {
               </div>
             )}
 
-            {/* Top Products with Pie Chart */}
+            {/* Top Products with Charts */}
             {data.topProducts && data.topProducts.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-4">Sản phẩm bán chạy</h3>
                 
-                {/* Pie Chart */}
+                {/* Bar Chart - Số lượng bán */}
                 <div className="mb-4">
+                  <h4 className="text-sm text-gray-600 mb-2">Số lượng bán (Bar Chart)</h4>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart
+                      data={data.topProducts.slice(0, 8).map((product) => ({
+                        name: product.productName.length > 10 
+                          ? product.productName.substring(0, 10) + '...' 
+                          : product.productName,
+                        quantity: product.quantity,
+                        revenue: product.revenue,
+                      }))}
+                      layout="vertical"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis type="number" />
+                      <YAxis dataKey="name" type="category" width={100} />
+                      <Tooltip 
+                        formatter={(value, name, props) => [
+                          name === 'quantity' 
+                            ? `${value} cái` 
+                            : formatCurrency(value),
+                          name === 'quantity' ? 'Số lượng' : 'Doanh thu'
+                        ]}
+                      />
+                      <Legend />
+                      <Bar dataKey="quantity" fill="#7A9A6E" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Pie Chart - Tỷ lệ sản phẩm */}
+                <div className="mb-4">
+                  <h4 className="text-sm text-gray-600 mb-2">Tỷ lệ sản phẩm (Pie Chart)</h4>
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie
@@ -450,6 +482,83 @@ const Analytics = () => {
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Payment Methods Chart */}
+            {data.cashAmount !== undefined && data.bankTransferAmount !== undefined && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-4">Thống kê thanh toán</h3>
+                
+                {/* Summary Cards */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                    <p className="text-xs text-gray-600 mb-1">Tiền mặt</p>
+                    <p className="text-lg font-bold text-green-600">
+                      {formatCurrency(data.cashAmount || 0)}
+                    </p>
+                    {data.totalRevenue > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {((data.cashAmount / data.totalRevenue) * 100).toFixed(1)}%
+                      </p>
+                    )}
+                  </div>
+                  <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                    <p className="text-xs text-gray-600 mb-1">Chuyển khoản</p>
+                    <p className="text-lg font-bold text-blue-600">
+                      {formatCurrency(data.bankTransferAmount || 0)}
+                    </p>
+                    {data.totalRevenue > 0 && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {((data.bankTransferAmount / data.totalRevenue) * 100).toFixed(1)}%
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Pie Chart - Payment Methods */}
+                {(data.cashAmount > 0 || data.bankTransferAmount > 0) && (
+                  <div>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            {
+                              name: 'Tiền mặt',
+                              value: data.cashAmount || 0,
+                              fill: '#10b981',
+                            },
+                            {
+                              name: 'Chuyển khoản',
+                              value: data.bankTransferAmount || 0,
+                              fill: '#3b82f6',
+                            },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent, value }) => 
+                            `${name}: ${(percent * 100).toFixed(1)}% (${formatCurrency(value)})`
+                          }
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          {[
+                            { name: 'Tiền mặt', value: data.cashAmount || 0, fill: '#10b981' },
+                            { name: 'Chuyển khoản', value: data.bankTransferAmount || 0, fill: '#3b82f6' },
+                          ].filter(item => item.value > 0).map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          formatter={(value) => formatCurrency(value)}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
               </div>
             )}
           </>

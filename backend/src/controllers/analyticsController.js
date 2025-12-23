@@ -89,6 +89,22 @@ const getDailyAnalytics = async (req, res) => {
       ? ((totalRevenue - previousDayRevenue) / previousDayRevenue) * 100 
       : (totalRevenue > 0 ? 100 : 0);
 
+    // Tính thống kê payment methods
+    const cashAmount = orders.reduce((sum, order) => {
+      if ((order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && 
+          order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
+    const bankTransferAmount = orders.reduce((sum, order) => {
+      if (order.paymentMethod === 'bank_transfer' && order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
     res.json({
       date,
       totalRevenue,
@@ -99,6 +115,8 @@ const getDailyAnalytics = async (req, res) => {
       previousDayRevenue,
       revenueChange,
       revenueChangePercent,
+      cashAmount,
+      bankTransferAmount,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -183,6 +201,22 @@ const getWeeklyAnalytics = async (req, res) => {
       return sum + order.totalAmount;
     }, 0);
 
+    // Tính thống kê payment methods
+    const cashAmount = orders.reduce((sum, order) => {
+      if ((order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && 
+          order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
+    const bankTransferAmount = orders.reduce((sum, order) => {
+      if (order.paymentMethod === 'bank_transfer' && order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
     res.json({
       week,
       startDate: start,
@@ -193,6 +227,8 @@ const getWeeklyAnalytics = async (req, res) => {
       previousWeekRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      cashAmount,
+      bankTransferAmount,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -271,6 +307,22 @@ const getMonthlyAnalytics = async (req, res) => {
       return sum + order.totalAmount;
     }, 0);
 
+    // Tính thống kê payment methods
+    const cashAmount = orders.reduce((sum, order) => {
+      if ((order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && 
+          order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
+    const bankTransferAmount = orders.reduce((sum, order) => {
+      if (order.paymentMethod === 'bank_transfer' && order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
     // Thống kê theo ngày trong tháng
     const dailyStats = {};
     orders.forEach((order) => {
@@ -294,6 +346,8 @@ const getMonthlyAnalytics = async (req, res) => {
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
       dailyStats,
+      cashAmount,
+      bankTransferAmount,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -373,6 +427,22 @@ const getQuarterlyAnalytics = async (req, res) => {
       return sum + order.totalAmount;
     }, 0);
 
+    // Tính thống kê payment methods
+    const cashAmount = orders.reduce((sum, order) => {
+      if ((order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && 
+          order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
+    const bankTransferAmount = orders.reduce((sum, order) => {
+      if (order.paymentMethod === 'bank_transfer' && order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
     res.json({
       quarter,
       startDate: start,
@@ -383,6 +453,8 @@ const getQuarterlyAnalytics = async (req, res) => {
       previousQuarterRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      cashAmount,
+      bankTransferAmount,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -460,6 +532,22 @@ const getYearlyAnalytics = async (req, res) => {
       return sum + order.totalAmount;
     }, 0);
 
+    // Tính thống kê payment methods
+    const cashAmount = orders.reduce((sum, order) => {
+      if ((order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && 
+          order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
+    const bankTransferAmount = orders.reduce((sum, order) => {
+      if (order.paymentMethod === 'bank_transfer' && order.totalAmount && !isNaN(order.totalAmount)) {
+        return sum + order.totalAmount;
+      }
+      return sum;
+    }, 0);
+
     // Thống kê theo tháng
     const monthlyStats = {};
     orders.forEach((order) => {
@@ -483,6 +571,8 @@ const getYearlyAnalytics = async (req, res) => {
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
       monthlyStats,
+      cashAmount,
+      bankTransferAmount,
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
