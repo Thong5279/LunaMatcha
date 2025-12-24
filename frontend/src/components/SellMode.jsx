@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import ProductList from './ProductList';
 import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
+import OrderReviewModal from './OrderReviewModal';
 import { HiTrash } from 'react-icons/hi2';
 import { toppingService } from '../services/toppingService';
 import { orderService } from '../services/orderService';
@@ -11,6 +12,7 @@ const SellMode = ({ onComplete }) => {
   const [cart, setCart] = useState([]);
   const [toppings, setToppings] = useState([]);
   const [showToppingSelector, setShowToppingSelector] = useState(false);
+  const [showOrderReview, setShowOrderReview] = useState(false);
   const [showChangeCalculator, setShowChangeCalculator] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
 
@@ -75,6 +77,11 @@ const SellMode = ({ onComplete }) => {
       showToast.error('Vui lòng thêm ít nhất một sản phẩm');
       return;
     }
+    setShowOrderReview(true);
+  };
+
+  const handleConfirmReview = () => {
+    setShowOrderReview(false);
     setShowChangeCalculator(true);
   };
 
@@ -118,28 +125,31 @@ const SellMode = ({ onComplete }) => {
       {cart.length > 0 && (
         <div className="fixed bottom-20 left-0 right-0 bg-white border-t shadow-lg z-[60]">
           <div className="max-w-[430px] mx-auto">
-            <div className="px-4 py-3 max-h-48 overflow-y-auto">
+            <div className="px-4 py-3 max-h-56 overflow-y-auto">
               {cart.map((item, index) => (
-                <div key={index} className="flex justify-between items-start mb-2 pb-2 border-b">
-                  <div className="flex-1">
-                    <p className="font-semibold text-sm">{item.productName}</p>
-                    <p className="text-xs text-gray-500">
-                      Size: {item.size === 'small' ? 'Nhỏ' : 'Lớn'} | Đá: {
-                        item.iceType === 'common' ? 'Chung' : 
-                        item.iceType === 'separate' ? 'Riêng' : 'Không đá'
-                      } | SL: {item.quantity} x {new Intl.NumberFormat('vi-VN').format(item.price)} đ
+                <div key={index} className="flex justify-between items-start mb-3 pb-3 border-b border-gray-200">
+                  <div className="flex-1 pr-2">
+                    <p className="font-semibold text-base mb-1">{item.productName}</p>
+                    <p className="text-sm text-gray-600 mb-1">
+                      <span className="font-medium">Size:</span> {item.size === 'small' ? 'Nhỏ' : 'Lớn'} |{' '}
+                      <span className="font-medium">Đá:</span>{' '}
+                      {item.iceType === 'common' ? 'Chung' : 
+                       item.iceType === 'separate' ? 'Riêng' : 'Không đá'} |{' '}
+                      <span className="font-medium">SL:</span> {item.quantity} x {new Intl.NumberFormat('vi-VN').format(item.price)} đ
                     </p>
                     {item.toppings.length > 0 && (
-                      <p className="text-xs text-gray-500">
-                        Topping: {item.toppings.map((t) => t.toppingName).join(', ')}
+                      <p className="text-sm text-gray-600 mb-1">
+                        <span className="font-medium">Topping:</span> {item.toppings.map((t) => t.toppingName).join(', ')}
                       </p>
                     )}
                     {item.note && (
-                      <p className="text-xs text-gray-500 italic">Ghi chú: {item.note}</p>
+                      <p className="text-sm text-gray-600 italic bg-yellow-50 p-1.5 rounded mt-1 border-l-2 border-yellow-400">
+                        <span className="font-medium">📝 Ghi chú:</span> {item.note}
+                      </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-semibold text-sm">
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <p className="font-semibold text-base text-green-600">
                       {new Intl.NumberFormat('vi-VN').format(
                         item.price * item.quantity +
                           item.toppings.reduce((sum, t) => sum + t.price * item.quantity, 0)
@@ -148,7 +158,8 @@ const SellMode = ({ onComplete }) => {
                     </p>
                     <button
                       onClick={() => handleRemoveFromCart(index)}
-                      className="text-red-500 p-1"
+                      className="text-red-500 p-1.5 hover:bg-red-50 rounded transition-colors"
+                      aria-label="Xóa"
                     >
                       <HiTrash className="w-5 h-5" />
                     </button>
@@ -158,7 +169,7 @@ const SellMode = ({ onComplete }) => {
             </div>
             <div className="px-4 py-3 bg-gray-50 border-t flex justify-between items-center">
               <span className="font-bold text-lg">Tổng cộng:</span>
-              <span className="font-bold text-lg text-green-600">
+              <span className="font-bold text-xl text-green-600">
                 {new Intl.NumberFormat('vi-VN').format(calculateTotal())} đ
               </span>
             </div>
@@ -182,6 +193,17 @@ const SellMode = ({ onComplete }) => {
             setShowToppingSelector(false);
             setSelectedProduct(null);
           }}
+        />
+      )}
+
+      {/* Order Review Modal */}
+      {showOrderReview && (
+        <OrderReviewModal
+          isOpen={showOrderReview}
+          onClose={() => setShowOrderReview(false)}
+          onConfirm={handleConfirmReview}
+          cart={cart}
+          totalAmount={calculateTotal()}
         />
       )}
 
