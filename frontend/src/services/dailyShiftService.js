@@ -6,3 +6,4 @@ export const dailyShiftService = {
   updateStartAmount: (id, startAmount) => api.put(`/api/shifts/${id}/start-amount`, { startAmount }),
 };
 
+

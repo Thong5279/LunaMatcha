@@ -4,6 +4,7 @@ import showToast from '../utils/toast';
 import OrderDetail from './OrderDetail';
 import LoadingSkeleton from './LoadingSkeleton';
 import EmptyState from './EmptyState';
+import ConfirmModal from './ConfirmModal';
 import { HiClipboardDocumentList } from 'react-icons/hi2';
 import { HiBanknotes, HiCreditCard } from 'react-icons/hi2';
 
@@ -13,6 +14,7 @@ const OrderList = () => {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
   const [filterDate, setFilterDate] = useState('');
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, orderId: null, isLoading: false });
 
   useEffect(() => {
     fetchOrders();
@@ -32,18 +34,30 @@ const OrderList = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc muốn xóa đơn hàng này?')) {
-      return;
-    }
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ isOpen: true, orderId: id, isLoading: false });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.orderId) return;
+
+    setDeleteConfirm(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await orderService.delete(id);
-      showToast.success('Đã xóa đơn hàng');
+      await orderService.delete(deleteConfirm.orderId);
+      showToast.success('Đã xóa đơn hàng thành công');
+      setDeleteConfirm({ isOpen: false, orderId: null, isLoading: false });
       fetchOrders();
     } catch (error) {
       showToast.error('Lỗi khi xóa đơn hàng');
       console.error(error);
+      setDeleteConfirm(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    if (!deleteConfirm.isLoading) {
+      setDeleteConfirm({ isOpen: false, orderId: null, isLoading: false });
     }
   };
 
@@ -166,8 +180,8 @@ const OrderList = () => {
                     Làm lại
                   </button>
                   <button
-                    onClick={() => handleDelete(order._id)}
-                    className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px]"
+                    onClick={() => handleDeleteClick(order._id)}
+                    className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px] transition-colors"
                   >
                     Xóa
                   </button>
@@ -213,6 +227,18 @@ const OrderList = () => {
           }}
         />
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Xóa đơn hàng"
+        message="Bạn có chắc chắn muốn xóa đơn hàng này? Hành động này không thể hoàn tác."
+        confirmText="Xóa đơn hàng"
+        cancelText="Hủy"
+        type="danger"
+        isLoading={deleteConfirm.isLoading}
+      />
     </>
   );
 };

@@ -10,3 +10,4 @@ export const analyticsService = {
   getTopProducts: (params) => api.get('/api/analytics/products', { params }),
 };
 
+

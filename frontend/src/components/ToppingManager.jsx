@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { toppingService } from '../services/toppingService';
 import { HiXMark } from 'react-icons/hi2';
+import ConfirmModal from './ConfirmModal';
 import showToast from '../utils/toast';
 
 const ToppingManager = ({ onClose }) => {
@@ -9,6 +10,7 @@ const ToppingManager = ({ onClose }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingTopping, setEditingTopping] = useState(null);
   const [formData, setFormData] = useState({ name: '', price: '' });
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, toppingId: null, isLoading: false });
 
   useEffect(() => {
     fetchToppings();
@@ -76,23 +78,34 @@ const ToppingManager = ({ onClose }) => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc muốn xóa topping này?')) {
-      return;
-    }
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ isOpen: true, toppingId: id, isLoading: false });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.toppingId) return;
 
     // Optimistic update
     const originalToppings = [...toppings];
-    setToppings(toppings.filter((t) => t._id !== id));
+    setToppings(toppings.filter((t) => t._id !== deleteConfirm.toppingId));
+    setDeleteConfirm(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await toppingService.delete(id);
-      showToast.success('Đã xóa topping');
+      await toppingService.delete(deleteConfirm.toppingId);
+      showToast.success('Đã xóa topping thành công');
+      setDeleteConfirm({ isOpen: false, toppingId: null, isLoading: false });
     } catch (error) {
       // Rollback on error
       setToppings(originalToppings);
       showToast.error('Lỗi khi xóa topping');
       console.error(error);
+      setDeleteConfirm(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    if (!deleteConfirm.isLoading) {
+      setDeleteConfirm({ isOpen: false, toppingId: null, isLoading: false });
     }
   };
 
@@ -205,8 +218,8 @@ const ToppingManager = ({ onClose }) => {
                       Sửa
                     </button>
                     <button
-                      onClick={() => handleDelete(topping._id)}
-                      className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px]"
+                      onClick={() => handleDeleteClick(topping._id)}
+                      className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px] transition-colors"
                     >
                       Xóa
                     </button>
@@ -217,6 +230,18 @@ const ToppingManager = ({ onClose }) => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Xóa topping"
+        message="Bạn có chắc chắn muốn xóa topping này? Hành động này không thể hoàn tác."
+        confirmText="Xóa topping"
+        cancelText="Hủy"
+        type="danger"
+        isLoading={deleteConfirm.isLoading}
+      />
     </div>
   );
 };

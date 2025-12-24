@@ -33,3 +33,4 @@ const LoadingSkeleton = ({ type = 'card' }) => {
 
 export default LoadingSkeleton;
 
+

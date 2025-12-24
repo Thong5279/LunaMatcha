@@ -11,3 +11,4 @@ export const productService = {
   delete: (id) => api.delete(`/api/products/${id}`),
 };
 
+

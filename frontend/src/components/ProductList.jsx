@@ -4,6 +4,7 @@ import ProductCard from './ProductCard';
 import ProductForm from './ProductForm';
 import LoadingSkeleton from './LoadingSkeleton';
 import EmptyState from './EmptyState';
+import ConfirmModal from './ConfirmModal';
 import { HiBeaker, HiPencil, HiTrash } from 'react-icons/hi2';
 import showToast from '../utils/toast';
 
@@ -12,6 +13,7 @@ const ProductList = ({ onProductSelect, isSelectMode = false, selectedProducts =
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, productId: null, isLoading: false });
 
   useEffect(() => {
     fetchProducts();
@@ -30,23 +32,34 @@ const ProductList = ({ onProductSelect, isSelectMode = false, selectedProducts =
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
-      return;
-    }
+  const handleDeleteClick = (id) => {
+    setDeleteConfirm({ isOpen: true, productId: id, isLoading: false });
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.productId) return;
 
     // Optimistic update
     const originalProducts = [...products];
-    setProducts(products.filter((p) => p._id !== id));
+    setProducts(products.filter((p) => p._id !== deleteConfirm.productId));
+    setDeleteConfirm(prev => ({ ...prev, isLoading: true }));
 
     try {
-      await productService.delete(id);
-      showToast.success('Đã xóa sản phẩm');
+      await productService.delete(deleteConfirm.productId);
+      showToast.success('Đã xóa sản phẩm thành công');
+      setDeleteConfirm({ isOpen: false, productId: null, isLoading: false });
     } catch (error) {
       // Rollback on error
       setProducts(originalProducts);
       showToast.error('Lỗi khi xóa sản phẩm');
       console.error(error);
+      setDeleteConfirm(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    if (!deleteConfirm.isLoading) {
+      setDeleteConfirm({ isOpen: false, productId: null, isLoading: false });
     }
   };
 
@@ -126,7 +139,7 @@ const ProductList = ({ onProductSelect, isSelectMode = false, selectedProducts =
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDelete(product._id);
+                    handleDeleteClick(product._id);
                   }}
                   className="bg-red-500 text-white p-2.5 rounded-full shadow-lg hover:bg-red-600 active:scale-95 transition-all min-w-[44px] min-h-[44px] flex items-center justify-center border-2 border-white"
                   aria-label="Xóa"
@@ -148,6 +161,18 @@ const ProductList = ({ onProductSelect, isSelectMode = false, selectedProducts =
           onProductUpdated={handleProductUpdated}
         />
       )}
+
+      <ConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Xóa sản phẩm"
+        message="Bạn có chắc chắn muốn xóa sản phẩm này? Hành động này không thể hoàn tác."
+        confirmText="Xóa sản phẩm"
+        cancelText="Hủy"
+        type="danger"
+        isLoading={deleteConfirm.isLoading}
+      />
     </>
   );
 };
