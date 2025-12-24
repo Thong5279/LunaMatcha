@@ -71,9 +71,31 @@ const OrderDetail = ({ order, onClose }) => {
           toppingId: topping._id,
           toppingName: topping.name,
           price: topping.price,
+          quantity: 1,
         },
       ];
     }
+    setItems(newItems);
+  };
+
+  const handleToppingQuantityChange = (itemIndex, toppingId, delta) => {
+    const newItems = [...items];
+    const itemToppings = newItems[itemIndex].toppings || [];
+    newItems[itemIndex].toppings = itemToppings.map((t) => {
+      if (t.toppingId === toppingId) {
+        const newQuantity = Math.max(1, (t.quantity || 1) + delta);
+        return { ...t, quantity: newQuantity };
+      }
+      return t;
+    });
+    setItems(newItems);
+  };
+
+  const handleToppingRemove = (itemIndex, toppingId) => {
+    const newItems = [...items];
+    newItems[itemIndex].toppings = (newItems[itemIndex].toppings || []).filter(
+      (t) => t.toppingId !== toppingId
+    );
     setItems(newItems);
   };
 
@@ -104,7 +126,7 @@ const OrderDetail = ({ order, onClose }) => {
     return items.reduce((total, item) => {
       const itemTotal = item.price * item.quantity;
       const toppingTotal = (item.toppings || []).reduce(
-        (sum, topping) => sum + topping.price * item.quantity,
+        (sum, topping) => sum + topping.price * (topping.quantity || 1) * item.quantity,
         0
       );
       return total + itemTotal + toppingTotal;
@@ -255,23 +277,59 @@ const OrderDetail = ({ order, onClose }) => {
 
               <div>
                 <label className="text-sm font-medium block mb-2">Topping:</label>
-                <div className="flex flex-wrap gap-2">
+                <div className="space-y-2">
                   {toppings.map((topping) => {
-                    const isSelected = (item.toppings || []).some(
+                    const selectedTopping = (item.toppings || []).find(
                       (t) => t.toppingId === topping._id
                     );
+                    const isSelected = !!selectedTopping;
+                    const toppingQuantity = selectedTopping?.quantity || 0;
                     return (
-                      <button
+                      <div
                         key={topping._id}
-                        onClick={() => handleToggleTopping(itemIndex, topping)}
-                        className={`px-4 py-2 rounded-lg text-sm border-2 min-h-[44px] ${
+                        className={`p-2 rounded-lg border-2 ${
                           isSelected
                             ? 'border-blue-500 bg-blue-50'
                             : 'border-gray-200 bg-white'
                         }`}
                       >
-                        {topping.name} (+{new Intl.NumberFormat('vi-VN').format(topping.price)} đ)
-                      </button>
+                        <div className="flex justify-between items-center mb-1">
+                          <button
+                            onClick={() => handleToggleTopping(itemIndex, topping)}
+                            className="flex-1 text-left"
+                          >
+                            <span className="text-sm font-medium">{topping.name}</span>
+                            <span className="text-xs text-gray-600 ml-2">
+                              (+{new Intl.NumberFormat('vi-VN').format(topping.price)} đ)
+                            </span>
+                          </button>
+                        </div>
+                        {isSelected && (
+                          <div className="flex items-center gap-2 mt-2">
+                            <button
+                              onClick={() => {
+                                if (toppingQuantity > 1) {
+                                  handleToppingQuantityChange(itemIndex, topping._id, -1);
+                                } else {
+                                  handleToppingRemove(itemIndex, topping._id);
+                                }
+                              }}
+                              className="w-8 h-8 rounded border border-gray-300 flex items-center justify-center bg-white hover:bg-gray-50"
+                            >
+                              -
+                            </button>
+                            <span className="flex-1 text-center font-semibold min-w-[40px] text-sm">
+                              {toppingQuantity}
+                            </span>
+                            <button
+                              onClick={() => handleToppingQuantityChange(itemIndex, topping._id, 1)}
+                              className="w-8 h-8 rounded border border-gray-300 flex items-center justify-center bg-white hover:bg-gray-50"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -366,7 +424,10 @@ const OrderDetail = ({ order, onClose }) => {
                       </p>
                       {item.toppings && item.toppings.length > 0 && (
                         <p className="text-gray-500 text-xs">
-                          Topping: {item.toppings.map(t => t.toppingName).join(', ')}
+                          Topping: {item.toppings.map(t => {
+                            const qty = t.quantity || 1;
+                            return qty > 1 ? `${t.toppingName} x${qty}` : t.toppingName;
+                          }).join(', ')}
                         </p>
                       )}
                       {item.note && (
@@ -377,7 +438,7 @@ const OrderDetail = ({ order, onClose }) => {
                       <p className="font-semibold">
                         {new Intl.NumberFormat('vi-VN').format(
                           (item.price * item.quantity) + 
-                          (item.toppings ? item.toppings.reduce((sum, t) => sum + (t.price * item.quantity), 0) : 0)
+                          (item.toppings ? item.toppings.reduce((sum, t) => sum + (t.price * (t.quantity || 1) * item.quantity), 0) : 0)
                         )} đ
                       </p>
                     </div>

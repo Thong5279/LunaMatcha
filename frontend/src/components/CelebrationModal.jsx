@@ -4,9 +4,11 @@ import { HiXMark } from 'react-icons/hi2';
 const CelebrationModal = ({ revenue, onClose }) => {
   const [showConfetti, setShowConfetti] = useState(true);
 
-  // Tạo dữ liệu confetti một lần khi component mount
+  // Tạo dữ liệu confetti một lần khi component mount - giảm số lượng trên mobile
   const [confettiData] = useState(() => {
-    return Array.from({ length: 150 }, () => ({
+    const isMobile = window.innerWidth <= 768;
+    const count = isMobile ? 80 : 150; // Giảm số lượng confetti trên mobile
+    return Array.from({ length: count }, () => ({
       left: `${Math.random() * 100}%`,
       animationDelay: `${Math.random() * 2}s`,
       animationDuration: `${2 + Math.random() * 2}s`,
@@ -66,7 +68,7 @@ const CelebrationModal = ({ revenue, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -85,37 +87,37 @@ const CelebrationModal = ({ revenue, onClose }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-6 max-w-sm w-full relative z-10 shadow-2xl">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-sm w-full relative z-10 shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center z-20"
           aria-label="Đóng"
         >
           <HiXMark className="w-6 h-6" />
         </button>
 
         <div className="text-center">
-          {/* Sticker */}
-          <div className="mb-4 flex justify-center">
+          {/* Sticker - Responsive cho iPhone 14 Pro Max */}
+          <div className="mb-3 sm:mb-4 flex justify-center">
             <img
               src={celebrationData.sticker}
               alt="Celebration"
-              className="w-48 h-48 object-contain"
+              className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 object-contain max-w-[200px] max-h-[200px]"
             />
           </div>
 
-          {/* Message */}
-          <h2 className="text-2xl font-bold text-accent-dark mb-2">
+          {/* Message - Responsive text */}
+          <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-accent-dark mb-2 px-2">
             {celebrationData.message}
           </h2>
-          <p className="text-lg text-gray-600 mb-4">
+          <p className="text-sm sm:text-base md:text-lg text-gray-600 mb-3 sm:mb-4 px-2">
             {celebrationData.subMessage}
           </p>
 
           {/* Revenue Display */}
-          <div className="bg-primary rounded-lg p-4 mb-4">
-            <p className="text-sm text-gray-600 mb-1">Doanh thu hôm nay</p>
-            <p className="text-3xl font-bold text-accent">
+          <div className="bg-primary rounded-lg p-3 sm:p-4 mb-3 sm:mb-4">
+            <p className="text-xs sm:text-sm text-gray-600 mb-1">Doanh thu hôm nay</p>
+            <p className="text-xl sm:text-2xl md:text-3xl font-bold text-accent">
               {formatCurrency(revenue)}
             </p>
           </div>

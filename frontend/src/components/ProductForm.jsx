@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../services/productService';
+import RecipeForm from './RecipeForm';
 import showToast from '../utils/toast';
 
 const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) => {
@@ -12,6 +13,7 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
   });
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [showRecipeForm, setShowRecipeForm] = useState(false);
 
   useEffect(() => {
     if (product) {
@@ -177,7 +179,33 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
             </button>
           </div>
         </form>
+
+        {/* Recipe Management - chỉ hiển thị khi đang sửa sản phẩm */}
+        {product && product._id && (
+          <div className="pt-4 border-t mt-4">
+            <button
+              type="button"
+              onClick={() => setShowRecipeForm(true)}
+              className="w-full py-2 px-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-accent hover:text-accent transition-colors"
+            >
+              📋 Quản lý công thức
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Recipe Form Modal */}
+      {showRecipeForm && product && product._id && (
+        <RecipeForm
+          productId={product._id}
+          productName={product.name}
+          onClose={() => setShowRecipeForm(false)}
+          onSave={() => {
+            // Có thể refresh data nếu cần
+            setShowRecipeForm(false);
+          }}
+        />
+      )}
     </div>
   );
 };

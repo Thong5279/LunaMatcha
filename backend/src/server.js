@@ -50,6 +50,7 @@ app.use('/api/toppings', require('./routes/toppingRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/shifts', require('./routes/dailyShiftRoutes'));
+app.use('/api/recipes', require('./routes/recipeRoutes'));
 
 // Health check
 app.get('/api/health', (req, res) => {

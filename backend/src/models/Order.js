@@ -40,6 +40,12 @@ const orderItemSchema = new mongoose.Schema({
         required: true,
         min: 0,
       },
+      quantity: {
+        type: Number,
+        required: true,
+        default: 1,
+        min: 1,
+      },
     },
   ],
   iceType: {
