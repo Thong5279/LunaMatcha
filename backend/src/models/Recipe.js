@@ -24,7 +24,11 @@ const recipeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
       required: true,
-      unique: true,
+    },
+    size: {
+      type: String,
+      enum: ['small', 'large'],
+      required: true,
     },
     ingredients: {
       type: [ingredientSchema],
@@ -41,6 +45,9 @@ const recipeSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Compound unique index để mỗi sản phẩm chỉ có 1 công thức cho mỗi size
+recipeSchema.index({ productId: 1, size: 1 }, { unique: true });
 
 module.exports = mongoose.model('Recipe', recipeSchema);
 

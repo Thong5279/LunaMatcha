@@ -1,8 +1,12 @@
 import api from './api';
 
 export const recipeService = {
-  // Lấy công thức theo productId
+  // Lấy tất cả công thức của sản phẩm (cả small và large)
   getByProductId: (productId) => api.get(`/api/recipes/products/${productId}`),
+  
+  // Lấy công thức theo productId và size
+  getByProductIdAndSize: (productId, size) => 
+    api.get(`/api/recipes/products/${productId}/${size}`),
   
   // Lấy công thức theo nhiều productId
   getByProductIds: (productIds) => {
@@ -10,7 +14,7 @@ export const recipeService = {
     return api.get(`/api/recipes/bulk?productIds=${ids}`);
   },
   
-  // Tạo hoặc cập nhật công thức
+  // Tạo hoặc cập nhật công thức (cần size trong recipeData)
   createOrUpdate: (productId, recipeData) => 
     api.post(`/api/recipes/products/${productId}`, recipeData),
   

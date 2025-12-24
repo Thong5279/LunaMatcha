@@ -4,26 +4,30 @@ import { HiXMark, HiTrash, HiPlus } from 'react-icons/hi2';
 import showToast from '../utils/toast';
 
 const RecipeForm = ({ productId, productName, onClose, onSave }) => {
+  const [selectedSize, setSelectedSize] = useState('small');
   const [ingredients, setIngredients] = useState([{ name: '', amount: '', unit: 'ml' }]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
     fetchRecipe();
-  }, [productId]);
+  }, [productId, selectedSize]);
 
   const fetchRecipe = async () => {
     try {
       setFetching(true);
-      const response = await recipeService.getByProductId(productId);
+      const response = await recipeService.getByProductIdAndSize(productId, selectedSize);
       if (response.data && response.data.ingredients) {
         setIngredients(response.data.ingredients);
+      } else {
+        setIngredients([{ name: '', amount: '', unit: 'ml' }]);
       }
     } catch (error) {
       // Không có công thức, giữ nguyên form trống
       if (error.response?.status !== 404) {
         console.error('Lỗi khi tải công thức:', error);
       }
+      setIngredients([{ name: '', amount: '', unit: 'ml' }]);
     } finally {
       setFetching(false);
     }
@@ -76,6 +80,7 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
     setLoading(true);
     try {
       const recipeData = {
+        size: selectedSize,
         ingredients: ingredients.map(ing => ({
           name: ing.name.trim(),
           amount: parseFloat(ing.amount),
@@ -118,6 +123,35 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Size Selector */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Size</label>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedSize('small')}
+                className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
+                  selectedSize === 'small'
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-gray-300 bg-white text-gray-700'
+                }`}
+              >
+                Nhỏ
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSize('large')}
+                className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
+                  selectedSize === 'large'
+                    ? 'border-accent bg-accent text-white'
+                    : 'border-gray-300 bg-white text-gray-700'
+                }`}
+              >
+                Lớn
+              </button>
+            </div>
+          </div>
+
           <div className="space-y-3">
             {ingredients.map((ingredient, index) => (
               <div key={index} className="border rounded-lg p-3 space-y-2">

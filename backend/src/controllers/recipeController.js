@@ -1,16 +1,32 @@
 const Recipe = require('../models/Recipe');
 
-// Lấy công thức theo productId
+// Lấy công thức theo productId và size
 const getRecipe = async (req, res) => {
   try {
-    const { productId } = req.params;
-    const recipe = await Recipe.findOne({ productId }).populate('productId');
+    const { productId, size } = req.params;
+    
+    if (!size || !['small', 'large'].includes(size)) {
+      return res.status(400).json({ message: 'Size phải là small hoặc large' });
+    }
+    
+    const recipe = await Recipe.findOne({ productId, size }).populate('productId');
     
     if (!recipe) {
       return res.status(404).json({ message: 'Không tìm thấy công thức' });
     }
     
     res.json(recipe);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Lấy tất cả công thức của một sản phẩm (cả small và large)
+const getRecipesByProduct = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const recipes = await Recipe.find({ productId }).populate('productId');
+    res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -45,7 +61,11 @@ const getRecipesByProductIds = async (req, res) => {
 const createOrUpdateRecipe = async (req, res) => {
   try {
     const { productId } = req.params;
-    const { ingredients } = req.body;
+    const { size, ingredients } = req.body;
+    
+    if (!size || !['small', 'large'].includes(size)) {
+      return res.status(400).json({ message: 'Size phải là small hoặc large' });
+    }
     
     if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
       return res.status(400).json({ message: 'Vui lòng cung cấp ít nhất một nguyên liệu' });
@@ -67,7 +87,7 @@ const createOrUpdateRecipe = async (req, res) => {
     }
     
     // Tìm công thức hiện có hoặc tạo mới
-    let recipe = await Recipe.findOne({ productId });
+    let recipe = await Recipe.findOne({ productId, size });
     
     if (recipe) {
       // Cập nhật
@@ -78,6 +98,7 @@ const createOrUpdateRecipe = async (req, res) => {
       // Tạo mới
       recipe = new Recipe({
         productId,
+        size,
         ingredients,
       });
       await recipe.save();
@@ -85,7 +106,7 @@ const createOrUpdateRecipe = async (req, res) => {
     }
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Sản phẩm này đã có công thức' });
+      return res.status(400).json({ message: 'Sản phẩm này đã có công thức cho size này' });
     }
     res.status(500).json({ message: error.message });
   }
@@ -110,6 +131,7 @@ const deleteRecipe = async (req, res) => {
 
 module.exports = {
   getRecipe,
+  getRecipesByProduct,
   getRecipesByProductIds,
   createOrUpdateRecipe,
   deleteRecipe,

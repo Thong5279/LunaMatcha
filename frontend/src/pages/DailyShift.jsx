@@ -283,16 +283,6 @@ const DailyShift = () => {
                   </div>
                 </div>
                 
-                {/* Tiền thực tế thu được */}
-                <div className="border-t-2 border-accent-dark pt-4 mt-4">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-semibold text-accent-dark mb-1">Tiền thực tế thu được</p>
-                      <p className="text-xs text-gray-600">(Doanh thu - Tiền đầu ca)</p>
-                    </div>
-                    <span className="text-2xl font-bold text-accent-dark">{formatCurrency(shift.netAmount)}</span>
-                  </div>
-                </div>
               </div>
             </div>
 

@@ -221,7 +221,7 @@ const SellMode = ({ onComplete }) => {
               </button>
               {showRecipe && (
                 <div className="mt-1.5">
-                  <RecipeViewer productIds={productIds} productMap={productMap} />
+                  <RecipeViewer cartItems={cart} productMap={productMap} />
                 </div>
               )}
             </div>

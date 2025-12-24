@@ -60,18 +60,21 @@ const CelebrationModal = ({ revenue, onClose }) => {
   }, []);
 
   if (!celebrationData) {
+    console.log('No celebration data for revenue:', revenue);
     return null;
   }
+
+  console.log('Rendering CelebrationModal with:', { revenue, celebrationData });
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-2 sm:p-4 overflow-hidden">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
       {/* Confetti Effect */}
       {showConfetti && (
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none overflow-hidden z-[101]">
           {confettiData.map((confetti, i) => (
             <div
               key={i}
@@ -87,10 +90,10 @@ const CelebrationModal = ({ revenue, onClose }) => {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-sm w-full relative z-10 shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-sm w-full relative z-[102] shadow-2xl mx-4 max-h-[90vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', position: 'relative' }}>
         <button
           onClick={onClose}
-          className="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center z-20"
+          className="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-gray-700 min-w-[44px] min-h-[44px] flex items-center justify-center z-[103]"
           aria-label="Đóng"
         >
           <HiXMark className="w-6 h-6" />
@@ -103,6 +106,15 @@ const CelebrationModal = ({ revenue, onClose }) => {
               src={celebrationData.sticker}
               alt="Celebration"
               className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 object-contain max-w-[200px] max-h-[200px]"
+              onError={(e) => {
+                console.error('Lỗi load sticker:', celebrationData.sticker);
+                e.target.style.display = 'none';
+              }}
+              onLoad={() => {
+                console.log('Sticker loaded successfully:', celebrationData.sticker);
+              }}
+              loading="eager"
+              crossOrigin="anonymous"
             />
           </div>
 
