@@ -1,10 +1,14 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Home from './pages/Home';
-import Orders from './pages/Orders';
-import Analytics from './pages/Analytics';
-import DailyShift from './pages/DailyShift';
 import BottomNav from './components/BottomNav';
+import LoadingSkeleton from './components/LoadingSkeleton';
+
+// Lazy load các pages lớn để giảm initial bundle size
+const Orders = lazy(() => import('./pages/Orders'));
+const Analytics = lazy(() => import('./pages/Analytics'));
+const DailyShift = lazy(() => import('./pages/DailyShift'));
 
 function App() {
   return (
@@ -12,9 +16,30 @@ function App() {
       <div className="min-h-screen bg-primary-light">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/shift" element={<DailyShift />} />
+          <Route 
+            path="/orders" 
+            element={
+              <Suspense fallback={<LoadingSkeleton type="page" />}>
+                <Orders />
+              </Suspense>
+            } 
+          />
+          <Route 
+            path="/analytics" 
+            element={
+              <Suspense fallback={<LoadingSkeleton type="page" />}>
+                <Analytics />
+              </Suspense>
+            } 
+          />
+          <Route 
+            path="/shift" 
+            element={
+              <Suspense fallback={<LoadingSkeleton type="page" />}>
+                <DailyShift />
+              </Suspense>
+            } 
+          />
         </Routes>
         <BottomNav />
         <Toaster 

@@ -61,14 +61,41 @@ const DailyShift = () => {
   useEffect(() => {
     // Only poll if selected date is today and we're on this page
     if (isToday() && location.pathname === '/shift') {
-      intervalRef.current = setInterval(() => {
-        fetchShift(true); // Silent refresh
-      }, 5000); // Poll every 5 seconds
+      const startPolling = () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        intervalRef.current = setInterval(() => {
+          fetchShift(true); // Silent refresh
+        }, 10000); // Poll every 10 seconds (reduced from 5s for better mobile performance)
+      };
+
+      // Start polling if tab is visible
+      if (!document.hidden) {
+        startPolling();
+      }
+
+      // Handle visibility change
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // Stop polling when tab is not active
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        } else if (isToday() && location.pathname === '/shift') {
+          // Resume polling when tab becomes active
+          startPolling();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       return () => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     } else {
       // Clear interval if not today or not on this page
@@ -77,7 +104,7 @@ const DailyShift = () => {
         intervalRef.current = null;
       }
     }
-  }, [selectedDate, location.pathname]);
+  }, [selectedDate, location.pathname, isToday]);
 
   const handleUpdateStartAmount = async () => {
     try {

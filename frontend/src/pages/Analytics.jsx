@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { HiChevronLeft, HiArrowPath } from 'react-icons/hi2';
 import { analyticsService } from '../services/analyticsService';
@@ -6,6 +6,7 @@ import CelebrationModal from '../components/CelebrationModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper } from '../utils/dateHelper';
+import { formatCurrency } from '../utils/formatCurrency';
 import {
   LineChart,
   Line,
@@ -118,14 +119,41 @@ const Analytics = () => {
   // Real-time polling for daily analytics (today only)
   useEffect(() => {
     if (shouldPoll()) {
-      intervalRef.current = setInterval(() => {
-        fetchAnalytics(true); // Silent refresh
-      }, 5000); // Poll every 5 seconds
+      const startPolling = () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+        }
+        intervalRef.current = setInterval(() => {
+          fetchAnalytics(true); // Silent refresh
+        }, 10000); // Poll every 10 seconds (reduced from 5s for better mobile performance)
+      };
+
+      // Start polling if tab is visible
+      if (!document.hidden) {
+        startPolling();
+      }
+
+      // Handle visibility change
+      const handleVisibilityChange = () => {
+        if (document.hidden) {
+          // Stop polling when tab is not active
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
+        } else if (shouldPoll()) {
+          // Resume polling when tab becomes active
+          startPolling();
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
 
       return () => {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
         }
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
     } else {
       // Clear interval if conditions not met
@@ -134,7 +162,7 @@ const Analytics = () => {
         intervalRef.current = null;
       }
     }
-  }, [period, date, location.pathname]);
+  }, [period, date, location.pathname, shouldPoll]);
 
   const getWeekNumber = (date) => {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -146,9 +174,60 @@ const Analytics = () => {
     )}`;
   };
 
-  const formatCurrency = (value) => {
-    return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
-  };
+  // Memoize chart data for better performance
+  const monthlyChartData = useMemo(() => {
+    if (!data?.dailyStats) return [];
+    return Object.entries(data.dailyStats).map(([day, stats]) => ({
+      day: `Ngày ${day}`,
+      revenue: stats.revenue,
+      orders: stats.orders,
+    }));
+  }, [data?.dailyStats]);
+
+  const yearlyChartData = useMemo(() => {
+    if (!data?.monthlyStats) return [];
+    return Object.entries(data.monthlyStats).map(([month, stats]) => ({
+      month: `Tháng ${month}`,
+      revenue: stats.revenue,
+      orders: stats.orders,
+    }));
+  }, [data?.monthlyStats]);
+
+  const topProductsBarData = useMemo(() => {
+    if (!data?.topProducts) return [];
+    return data.topProducts.slice(0, 8).map((product) => ({
+      name: product.productName.length > 10 
+        ? product.productName.substring(0, 10) + '...' 
+        : product.productName,
+      quantity: product.quantity,
+      revenue: product.revenue,
+    }));
+  }, [data?.topProducts]);
+
+  const topProductsPieData = useMemo(() => {
+    if (!data?.topProducts) return [];
+    return data.topProducts.slice(0, 8).map((product) => ({
+      name: product.productName,
+      value: product.quantity,
+      revenue: product.revenue,
+    }));
+  }, [data?.topProducts]);
+
+  const paymentMethodsData = useMemo(() => {
+    if (data?.cashAmount === undefined || data?.bankTransferAmount === undefined) return [];
+    return [
+      {
+        name: 'Tiền mặt',
+        value: data.cashAmount || 0,
+        fill: '#10b981',
+      },
+      {
+        name: 'Chuyển khoản',
+        value: data.bankTransferAmount || 0,
+        fill: '#3b82f6',
+      },
+    ].filter(item => item.value > 0);
+  }, [data?.cashAmount, data?.bankTransferAmount]);
 
   // Xử lý khi bấm vào linh vật
   const handleMascotClick = async () => {
@@ -341,37 +420,27 @@ const Analytics = () => {
             )}
 
             {/* Charts */}
-            {period === 'monthly' && data.dailyStats && (
+            {period === 'monthly' && monthlyChartData.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-4">Doanh thu theo ngày</h3>
                 <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={Object.entries(data.dailyStats).map(([day, stats]) => ({
-                    day: `Ngày ${day}`,
-                    revenue: stats.revenue,
-                    orders: stats.orders,
-                  }))}>
+                  <BarChart data={monthlyChartData} isAnimationActive={false}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="day" />
                     <YAxis />
                     <Tooltip formatter={(value) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="revenue" fill="#10b981" />
+                    <Bar dataKey="revenue" fill="#10b981" isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
 
-            {period === 'yearly' && data.monthlyStats && (
+            {period === 'yearly' && yearlyChartData.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-4">Doanh thu theo tháng</h3>
                 <ResponsiveContainer width="100%" height={200}>
-                  <LineChart
-                    data={Object.entries(data.monthlyStats).map(([month, stats]) => ({
-                      month: `Tháng ${month}`,
-                      revenue: stats.revenue,
-                      orders: stats.orders,
-                    }))}
-                  >
+                  <LineChart data={yearlyChartData} isAnimationActive={false}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -382,6 +451,7 @@ const Analytics = () => {
                       dataKey="revenue"
                       stroke="#10b981"
                       strokeWidth={2}
+                      isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -397,16 +467,7 @@ const Analytics = () => {
                 <div className="mb-4">
                   <h4 className="text-sm text-gray-600 mb-2">Số lượng bán (Bar Chart)</h4>
                   <ResponsiveContainer width="100%" height={250}>
-                    <BarChart
-                      data={data.topProducts.slice(0, 8).map((product) => ({
-                        name: product.productName.length > 10 
-                          ? product.productName.substring(0, 10) + '...' 
-                          : product.productName,
-                        quantity: product.quantity,
-                        revenue: product.revenue,
-                      }))}
-                      layout="vertical"
-                    >
+                    <BarChart data={topProductsBarData} layout="vertical" isAnimationActive={false}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis type="number" />
                       <YAxis dataKey="name" type="category" width={100} />
@@ -419,7 +480,7 @@ const Analytics = () => {
                         ]}
                       />
                       <Legend />
-                      <Bar dataKey="quantity" fill="#7A9A6E" />
+                      <Bar dataKey="quantity" fill="#7A9A6E" isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -430,11 +491,7 @@ const Analytics = () => {
                   <ResponsiveContainer width="100%" height={250}>
                     <PieChart>
                       <Pie
-                        data={data.topProducts.slice(0, 8).map((product) => ({
-                          name: product.productName,
-                          value: product.quantity,
-                          revenue: product.revenue,
-                        }))}
+                        data={topProductsPieData}
                         cx="50%"
                         cy="50%"
                         labelLine={false}
@@ -442,8 +499,9 @@ const Analytics = () => {
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
+                        isAnimationActive={false}
                       >
-                        {data.topProducts.slice(0, 8).map((entry, index) => {
+                        {topProductsPieData.map((entry, index) => {
                           const colors = [
                             '#7A9A6E', '#A8C090', '#DEE9CB', '#C4D4B0',
                             '#8EAA78', '#B8D0A0', '#62805A', '#98B080'
@@ -517,23 +575,12 @@ const Analytics = () => {
                 </div>
 
                 {/* Pie Chart - Payment Methods */}
-                {(data.cashAmount > 0 || data.bankTransferAmount > 0) && (
+                {paymentMethodsData.length > 0 && (
                   <div>
                     <ResponsiveContainer width="100%" height={250}>
                       <PieChart>
                         <Pie
-                          data={[
-                            {
-                              name: 'Tiền mặt',
-                              value: data.cashAmount || 0,
-                              fill: '#10b981',
-                            },
-                            {
-                              name: 'Chuyển khoản',
-                              value: data.bankTransferAmount || 0,
-                              fill: '#3b82f6',
-                            },
-                          ].filter(item => item.value > 0)}
+                          data={paymentMethodsData}
                           cx="50%"
                           cy="50%"
                           labelLine={false}
@@ -543,11 +590,9 @@ const Analytics = () => {
                           outerRadius={80}
                           fill="#8884d8"
                           dataKey="value"
+                          isAnimationActive={false}
                         >
-                          {[
-                            { name: 'Tiền mặt', value: data.cashAmount || 0, fill: '#10b981' },
-                            { name: 'Chuyển khoản', value: data.bankTransferAmount || 0, fill: '#3b82f6' },
-                          ].filter(item => item.value > 0).map((entry, index) => (
+                          {paymentMethodsData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.fill} />
                           ))}
                         </Pie>

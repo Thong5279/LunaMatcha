@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import ProductList from './ProductList';
 import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
@@ -7,6 +7,7 @@ import { HiTrash } from 'react-icons/hi2';
 import { toppingService } from '../services/toppingService';
 import { orderService } from '../services/orderService';
 import showToast from '../utils/toast';
+import { formatCurrencyWithUnit } from '../utils/formatCurrency';
 
 const SellMode = ({ onComplete }) => {
   const [cart, setCart] = useState([]);
@@ -29,12 +30,12 @@ const SellMode = ({ onComplete }) => {
     }
   };
 
-  const handleProductSelect = (product) => {
+  const handleProductSelect = useCallback((product) => {
     setSelectedProduct(product);
     setShowToppingSelector(true);
-  };
+  }, []);
 
-  const handleAddToCart = (product, size, quantity, iceType, selectedToppings, note) => {
+  const handleAddToCart = useCallback((product, size, quantity, iceType, selectedToppings, note) => {
     const price = size === 'small' ? product.priceSmall : product.priceLarge;
     const cartItem = {
       productId: product._id,
@@ -51,17 +52,18 @@ const SellMode = ({ onComplete }) => {
       note: note || '',
     };
 
-    setCart([...cart, cartItem]);
+    setCart((prevCart) => [...prevCart, cartItem]);
     setShowToppingSelector(false);
     setSelectedProduct(null);
     showToast.success('Đã thêm vào giỏ hàng');
-  };
+  }, []);
 
-  const handleRemoveFromCart = (index) => {
-    setCart(cart.filter((_, i) => i !== index));
-  };
+  const handleRemoveFromCart = useCallback((index) => {
+    setCart((prevCart) => prevCart.filter((_, i) => i !== index));
+  }, []);
 
-  const calculateTotal = () => {
+  // Memoize total calculation
+  const totalAmount = useMemo(() => {
     return cart.reduce((total, item) => {
       const itemTotal = item.price * item.quantity;
       const toppingTotal = item.toppings.reduce(
@@ -70,20 +72,41 @@ const SellMode = ({ onComplete }) => {
       );
       return total + itemTotal + toppingTotal;
     }, 0);
-  };
+  }, [cart]);
 
-  const handleComplete = () => {
+  // Memoize selectedProducts mapping
+  const selectedProducts = useMemo(() => {
+    return cart.map((item) => ({ _id: item.productId }));
+  }, [cart]);
+
+  // Memoize cart items with pre-calculated totals
+  const cartItems = useMemo(() => {
+    return cart.map((item, index) => {
+      const itemTotal = item.price * item.quantity;
+      const toppingTotal = item.toppings.reduce(
+        (sum, t) => sum + t.price * item.quantity,
+        0
+      );
+      return {
+        ...item,
+        totalPrice: itemTotal + toppingTotal,
+        index,
+      };
+    });
+  }, [cart]);
+
+  const handleComplete = useCallback(() => {
     if (cart.length === 0) {
       showToast.error('Vui lòng thêm ít nhất một sản phẩm');
       return;
     }
     setShowOrderReview(true);
-  };
+  }, [cart.length]);
 
-  const handleConfirmReview = () => {
+  const handleConfirmReview = useCallback(() => {
     setShowOrderReview(false);
     setShowChangeCalculator(true);
-  };
+  }, []);
 
   const handleConfirmOrder = async (customerPaid, change, paymentMethod) => {
     try {
@@ -118,7 +141,7 @@ const SellMode = ({ onComplete }) => {
       <ProductList
         onProductSelect={handleProductSelect}
         isSelectMode={true}
-        selectedProducts={cart.map((item) => ({ _id: item.productId }))}
+        selectedProducts={selectedProducts}
       />
 
       {/* Cart Summary */}
@@ -126,8 +149,8 @@ const SellMode = ({ onComplete }) => {
         <div className="fixed bottom-20 left-0 right-0 bg-white border-t shadow-lg z-[60]">
           <div className="max-w-[430px] mx-auto">
             <div className="px-4 py-3 max-h-56 overflow-y-auto">
-              {cart.map((item, index) => (
-                <div key={index} className="flex justify-between items-start mb-3 pb-3 border-b border-gray-200">
+              {cartItems.map((item) => (
+                <div key={item.index} className="flex justify-between items-start mb-3 pb-3 border-b border-gray-200">
                   <div className="flex-1 pr-2">
                     <p className="font-semibold text-base mb-1">{item.productName}</p>
                     <p className="text-sm text-gray-600 mb-1">
@@ -135,7 +158,7 @@ const SellMode = ({ onComplete }) => {
                       <span className="font-medium">Đá:</span>{' '}
                       {item.iceType === 'common' ? 'Chung' : 
                        item.iceType === 'separate' ? 'Riêng' : 'Không đá'} |{' '}
-                      <span className="font-medium">SL:</span> {item.quantity} x {new Intl.NumberFormat('vi-VN').format(item.price)} đ
+                      <span className="font-medium">SL:</span> {item.quantity} x {formatCurrencyWithUnit(item.price)}
                     </p>
                     {item.toppings.length > 0 && (
                       <p className="text-sm text-gray-600 mb-1">
@@ -150,14 +173,10 @@ const SellMode = ({ onComplete }) => {
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <p className="font-semibold text-base text-green-600">
-                      {new Intl.NumberFormat('vi-VN').format(
-                        item.price * item.quantity +
-                          item.toppings.reduce((sum, t) => sum + t.price * item.quantity, 0)
-                      )}{' '}
-                      đ
+                      {formatCurrencyWithUnit(item.totalPrice)}
                     </p>
                     <button
-                      onClick={() => handleRemoveFromCart(index)}
+                      onClick={() => handleRemoveFromCart(item.index)}
                       className="text-red-500 p-1.5 hover:bg-red-50 rounded transition-colors"
                       aria-label="Xóa"
                     >
@@ -170,7 +189,7 @@ const SellMode = ({ onComplete }) => {
             <div className="px-4 py-3 bg-gray-50 border-t flex justify-between items-center">
               <span className="font-bold text-lg">Tổng cộng:</span>
               <span className="font-bold text-xl text-green-600">
-                {new Intl.NumberFormat('vi-VN').format(calculateTotal())} đ
+                {formatCurrencyWithUnit(totalAmount)}
               </span>
             </div>
             <button
@@ -203,14 +222,14 @@ const SellMode = ({ onComplete }) => {
           onClose={() => setShowOrderReview(false)}
           onConfirm={handleConfirmReview}
           cart={cart}
-          totalAmount={calculateTotal()}
+          totalAmount={totalAmount}
         />
       )}
 
       {/* Change Calculator Modal */}
       {showChangeCalculator && (
         <ChangeCalculator
-          totalAmount={calculateTotal()}
+          totalAmount={totalAmount}
           onConfirm={handleConfirmOrder}
           onCancel={() => setShowChangeCalculator(false)}
         />
