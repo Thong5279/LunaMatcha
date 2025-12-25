@@ -124,10 +124,21 @@ const createOrder = async (req, res) => {
       endOfDay.setHours(23, 59, 59, 999);
 
       // Query orders theo orderDate hoặc createdAt (cho orders cũ)
+      // Chỉ tính orders có status 'completed' (mặc định) hoặc không có status
       const orders = await Order.find({
-        $or: [
-          { orderDate: { $gte: startOfDay, $lte: endOfDay } },
-          { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        $and: [
+          {
+            $or: [
+              { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+              { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+            ]
+          },
+          {
+            $or: [
+              { status: 'completed' },
+              { status: { $exists: false } }
+            ]
+          }
         ]
       });
 
@@ -207,9 +218,19 @@ const updateOrder = async (req, res) => {
         endOfDay.setHours(23, 59, 59, 999);
 
         const orders = await Order.find({
-          $or: [
-            { orderDate: { $gte: startOfDay, $lte: endOfDay } },
-            { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+          $and: [
+            {
+              $or: [
+                { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+                { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+              ]
+            },
+            {
+              $or: [
+                { status: 'completed' },
+                { status: { $exists: false } }
+              ]
+            }
           ]
         });
 
@@ -273,9 +294,19 @@ const deleteOrder = async (req, res) => {
         endOfDay.setHours(23, 59, 59, 999);
 
         const orders = await Order.find({
-          $or: [
-            { orderDate: { $gte: startOfDay, $lte: endOfDay } },
-            { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+          $and: [
+            {
+              $or: [
+                { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+                { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+              ]
+            },
+            {
+              $or: [
+                { status: 'completed' },
+                { status: { $exists: false } }
+              ]
+            }
           ]
         });
 
@@ -329,11 +360,73 @@ const getOrderById = async (req, res) => {
   }
 };
 
+// Hold order - tạm giữ đơn hàng
+const holdOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    }
+
+    if (order.status === 'held') {
+      return res.status(400).json({ message: 'Đơn hàng này đã được tạm giữ' });
+    }
+
+    order.status = 'held';
+    order.heldAt = new Date();
+    await order.save();
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Lấy danh sách held orders
+const getHeldOrders = async (req, res) => {
+  try {
+    const orders = await Order.find({ status: 'held' })
+      .sort({ heldAt: -1 })
+      .limit(50); // Giới hạn 50 đơn hàng gần nhất
+
+    res.json(orders);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Restore held order - khôi phục đơn hàng đã hold
+const restoreOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findById(id);
+
+    if (!order) {
+      return res.status(404).json({ message: 'Không tìm thấy đơn hàng' });
+    }
+
+    if (order.status !== 'held') {
+      return res.status(400).json({ message: 'Đơn hàng này không phải là đơn hàng đã tạm giữ' });
+    }
+
+    // Chỉ trả về thông tin order, không thay đổi status
+    // Status sẽ được thay đổi khi hoàn tất thanh toán
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getOrders,
   createOrder,
   updateOrder,
   deleteOrder,
   getOrderById,
+  holdOrder,
+  getHeldOrders,
+  restoreOrder,
 };
 

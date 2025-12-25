@@ -15,7 +15,8 @@ const getRecipe = async (req, res) => {
       return res.status(400).json({ message: 'Size phải là small hoặc large' });
     }
     
-    const recipe = await Recipe.findOne({ productId, size }).populate('productId');
+    const productObjectId = new mongoose.Types.ObjectId(productId);
+    const recipe = await Recipe.findOne({ productId: productObjectId, size }).populate('productId');
     
     if (!recipe) {
       return res.status(404).json({ message: 'Không tìm thấy công thức' });
@@ -37,7 +38,8 @@ const getRecipesByProduct = async (req, res) => {
       return res.status(400).json({ message: 'ProductId không hợp lệ' });
     }
     
-    const recipes = await Recipe.find({ productId }).populate('productId');
+    const productObjectId = new mongoose.Types.ObjectId(productId);
+    const recipes = await Recipe.find({ productId: productObjectId }).populate('productId');
     res.json(recipes);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -139,8 +141,11 @@ const createOrUpdateRecipe = async (req, res) => {
       };
     }
     
+    // Convert productId sang ObjectId để đảm bảo query đúng
+    const productObjectId = new mongoose.Types.ObjectId(productId);
+    
     // Tìm công thức hiện có hoặc tạo mới
-    let recipe = await Recipe.findOne({ productId, size });
+    let recipe = await Recipe.findOne({ productId: productObjectId, size });
     
     if (recipe) {
       // Cập nhật
@@ -150,7 +155,7 @@ const createOrUpdateRecipe = async (req, res) => {
     } else {
       // Tạo mới
       recipe = new Recipe({
-        productId,
+        productId: productObjectId,
         size,
         ingredients,
       });

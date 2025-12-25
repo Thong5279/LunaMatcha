@@ -88,6 +88,15 @@ const orderSchema = new mongoose.Schema(
       // Index để query nhanh hơn
       index: true,
     },
+    status: {
+      type: String,
+      enum: ['pending', 'completed', 'held'],
+      default: 'completed',
+    },
+    heldAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

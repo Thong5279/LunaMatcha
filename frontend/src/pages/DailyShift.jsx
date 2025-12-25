@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HiChevronLeft, HiArrowPath } from 'react-icons/hi2';
+import { HiChevronLeft, HiArrowPath, HiPrinter } from 'react-icons/hi2';
 import { dailyShiftService } from '../services/dailyShiftService';
 import CelebrationModal from '../components/CelebrationModal';
 import showToast from '../utils/toast';
@@ -16,6 +16,7 @@ const DailyShift = () => {
   const [startAmount, setStartAmount] = useState('');
   const [selectedDate, setSelectedDate] = useState(() => getTodayDate());
   const [showCelebration, setShowCelebration] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const intervalRef = useRef(null);
 
   // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
@@ -138,6 +139,42 @@ const DailyShift = () => {
     }
   };
 
+  const handlePrint = async () => {
+    if (!shift || !shift._id) {
+      showToast.error('Không có dữ liệu ca làm việc để in');
+      return;
+    }
+
+    try {
+      setPrinting(true);
+      const response = await dailyShiftService.print(shift._id);
+      
+      // Tạo blob từ response và mở cửa sổ in
+      const blob = new Blob([response.data], { type: 'text/html; charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url, '_blank');
+      
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+          setTimeout(() => {
+            URL.revokeObjectURL(url);
+            printWindow.close();
+          }, 1000);
+        };
+      } else {
+        showToast.error('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+      }
+      
+      showToast.success('Đang in bill...');
+    } catch (error) {
+      console.error('Error printing:', error);
+      showToast.error('Lỗi khi in bill');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('vi-VN').format(amount) + ' đ';
   };
@@ -174,7 +211,7 @@ const DailyShift = () => {
               aria-label="Xem celebration"
             >
               <img
-                src="https://media.tenor.com/G_ar9s-uj64AAAAi/psybirdb1oom.gif"
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766651725/psybirdb1oom_qiqb5y.gif"
                 alt="Mascot"
                 className="w-12 h-12 object-contain"
               />
@@ -247,7 +284,17 @@ const DailyShift = () => {
 
             {/* Summary */}
             <div className="bg-gradient-to-br from-primary to-primary-dark rounded-lg p-6 shadow-lg">
-              <h2 className="text-lg font-bold mb-4 text-accent-dark">Tổng kết ca làm việc</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-accent-dark">Tổng kết ca làm việc</h2>
+                <button
+                  onClick={handlePrint}
+                  disabled={printing}
+                  className="p-2 bg-white bg-opacity-20 hover:bg-opacity-30 rounded-lg transition-colors disabled:opacity-50"
+                  aria-label="In bill"
+                >
+                  <HiPrinter className={`w-5 h-5 text-accent-dark ${printing ? 'animate-pulse' : ''}`} />
+                </button>
+              </div>
               
               <div className="space-y-4">
                 {/* Tiền đầu ca */}

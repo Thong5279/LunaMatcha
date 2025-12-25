@@ -1,21 +1,22 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import ProductList from '../components/ProductList';
 import SellMode from '../components/SellMode';
 import ProductForm from '../components/ProductForm';
 import ToppingManager from '../components/ToppingManager';
 import CelebrationModal from '../components/CelebrationModal';
+import HeldOrdersModal from '../components/HeldOrdersModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
+import { HiClock } from 'react-icons/hi2';
 
 const Home = () => {
   const [isSellMode, setIsSellMode] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showToppingManager, setShowToppingManager] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
-  const navigate = useNavigate();
 
   // Xử lý khi bấm vào linh vật
   const handleMascotClick = async () => {
@@ -60,7 +61,7 @@ const Home = () => {
               aria-label="Xem celebration"
             >
               <img
-                src="https://media.tenor.com/G_ar9s-uj64AAAAi/psybirdb1oom.gif"
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766651725/psybirdb1oom_qiqb5y.gif"
                 alt="Mascot"
                 className="w-12 h-12 object-contain"
               />
@@ -98,6 +99,15 @@ const Home = () => {
               </button>
             </>
           )}
+          {isSellMode && (
+            <button
+              onClick={() => setShowHeldOrders(true)}
+              className="px-3 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+              aria-label="Đơn hàng đã tạm giữ"
+            >
+              <HiClock className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -123,6 +133,19 @@ const Home = () => {
         <CelebrationModal
           revenue={todayRevenue}
           onClose={() => setShowCelebration(false)}
+        />
+      )}
+
+      {/* Held Orders Modal */}
+      {isSellMode && (
+        <HeldOrdersModal
+          isOpen={showHeldOrders}
+          onClose={() => setShowHeldOrders(false)}
+          onRestore={() => {
+            // Restore order vào SellMode - cần truyền callback
+            setShowHeldOrders(false);
+            showToast.success('Đã khôi phục đơn hàng. Vui lòng thêm vào giỏ hàng từ SellMode.');
+          }}
         />
       )}
     </div>

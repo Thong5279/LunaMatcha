@@ -18,10 +18,21 @@ const getOrCreateShift = async (req, res) => {
       endOfDay.setHours(23, 59, 59, 999);
 
       // Query orders theo orderDate hoặc createdAt (cho orders cũ)
+      // Chỉ tính orders có status 'completed' (mặc định) hoặc không có status
       const orders = await Order.find({
-        $or: [
-          { orderDate: { $gte: startOfDay, $lte: endOfDay } },
-          { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        $and: [
+          {
+            $or: [
+              { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+              { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+            ]
+          },
+          {
+            $or: [
+              { status: 'completed' },
+              { status: { $exists: false } }
+            ]
+          }
         ]
       });
 
@@ -60,10 +71,21 @@ const getOrCreateShift = async (req, res) => {
       endOfDay.setHours(23, 59, 59, 999);
 
       // Query orders theo orderDate hoặc createdAt (cho orders cũ)
+      // Chỉ tính orders có status 'completed' (mặc định) hoặc không có status
       const orders = await Order.find({
-        $or: [
-          { orderDate: { $gte: startOfDay, $lte: endOfDay } },
-          { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        $and: [
+          {
+            $or: [
+              { orderDate: { $gte: startOfDay, $lte: endOfDay } },
+              { orderDate: { $exists: false }, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+            ]
+          },
+          {
+            $or: [
+              { status: 'completed' },
+              { status: { $exists: false } }
+            ]
+          }
         ]
       });
 
@@ -140,9 +162,172 @@ const getShifts = async (req, res) => {
   }
 };
 
+// In bill tổng kết ca làm việc
+const printShift = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const shift = await DailyShift.findById(id);
+
+    if (!shift) {
+      return res.status(404).json({ message: 'Không tìm thấy ca làm việc' });
+    }
+
+    // Tạo HTML template cho bill
+    const formatCurrency = (amount) => {
+      return new Intl.NumberFormat('vi-VN').format(amount);
+    };
+
+    const formatDate = (date) => {
+      return new Date(date).toLocaleDateString('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      });
+    };
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Tổng kết ca làm việc</title>
+  <style>
+    @media print {
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+      body {
+        margin: 0;
+        padding: 10px;
+      }
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      padding: 10px;
+      margin: 0;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .info {
+      margin-bottom: 10px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .label {
+      font-weight: bold;
+    }
+    .value {
+      text-align: right;
+    }
+    .section {
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid #ccc;
+    }
+    .total {
+      font-size: 16px;
+      font-weight: bold;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 2px solid #000;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 10px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>LUNA MATCHA</h1>
+    <p>Tổng kết ca làm việc</p>
+  </div>
+  
+  <div class="info">
+    <div class="info-row">
+      <span class="label">Ngày:</span>
+      <span class="value">${formatDate(shift.date)}</span>
+    </div>
+    <div class="info-row">
+      <span class="label">Số đơn hàng:</span>
+      <span class="value">${shift.orders.length}</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="info-row">
+      <span class="label">Tiền đầu ca:</span>
+      <span class="value">${formatCurrency(shift.startAmount)} đ</span>
+    </div>
+    <div class="info-row">
+      <span class="label">Doanh thu tiền mặt:</span>
+      <span class="value">${formatCurrency(shift.cashAmount)} đ</span>
+    </div>
+    <div class="info-row">
+      <span class="label">Doanh thu chuyển khoản:</span>
+      <span class="value">${formatCurrency(shift.bankTransferAmount)} đ</span>
+    </div>
+    <div class="info-row">
+      <span class="label">Tổng doanh thu:</span>
+      <span class="value">${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} đ</span>
+    </div>
+  </div>
+
+  <div class="section total">
+    <div class="info-row">
+      <span class="label">Tổng tiền có:</span>
+      <span class="value">${formatCurrency(shift.startAmount + shift.endAmount)} đ</span>
+    </div>
+    <div class="info-row">
+      <span class="label">Tiền lãi:</span>
+      <span class="value">${formatCurrency(shift.netAmount)} đ</span>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>In lúc: ${new Date().toLocaleString('vi-VN')}</p>
+  </div>
+</body>
+</html>
+    `;
+
+    // Gửi HTML đến máy in qua IP
+    const printerIP = '192.168.0.4';
+    const printerPort = 9100; // Port mặc định cho network printer
+
+    // Sử dụng http request để gửi đến máy in
+    // Lưu ý: Cần cài đặt thư viện để gửi raw data đến máy in
+    // Hoặc có thể trả về HTML để frontend in trực tiếp
+
+    // Tạm thời trả về HTML để frontend xử lý in
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(htmlContent);
+  } catch (error) {
+    console.error('Error printing shift:', error);
+    res.status(500).json({ message: 'Lỗi khi in bill' });
+  }
+};
+
 module.exports = {
   getOrCreateShift,
   updateStartAmount,
   getShifts,
+  printShift,
 };
 

@@ -54,7 +54,7 @@ const Orders = () => {
               aria-label="Xem celebration"
             >
               <img
-                src="https://media.tenor.com/G_ar9s-uj64AAAAi/psybirdb1oom.gif"
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766651725/psybirdb1oom_qiqb5y.gif"
                 alt="Mascot"
                 className="w-12 h-12 object-contain"
               />
