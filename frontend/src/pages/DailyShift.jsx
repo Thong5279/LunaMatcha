@@ -150,9 +150,15 @@ const DailyShift = () => {
       const response = await dailyShiftService.print(shift._id);
       
       // Kiểm tra xem response có phải là JSON (in thành công) hay HTML (fallback)
-      if (response.data instanceof Blob) {
-        // Nếu là Blob, có nghĩa là server trả về HTML (fallback)
-        const url = URL.createObjectURL(response.data);
+      if (response.data && typeof response.data === 'object' && response.data.success) {
+        // Nếu là JSON với success: true, có nghĩa là đã gửi thành công đến máy in
+        showToast.success('Đã gửi lệnh in đến máy in thành công');
+      } else if (response.data instanceof Blob || response.headers['content-type']?.includes('text/html')) {
+        // Nếu là Blob hoặc HTML, có nghĩa là server trả về HTML (fallback)
+        const blob = response.data instanceof Blob 
+          ? response.data 
+          : new Blob([response.data], { type: 'text/html; charset=utf-8' });
+        const url = URL.createObjectURL(blob);
         const printWindow = window.open(url, '_blank');
         
         if (printWindow) {
@@ -168,12 +174,29 @@ const DailyShift = () => {
         }
         showToast.info('Đang mở cửa sổ in (máy in không khả dụng)');
       } else {
-        // Nếu là JSON, có nghĩa là đã gửi thành công đến máy in
-        showToast.success('Đã gửi lệnh in đến máy in thành công');
+        // Fallback: thử parse như HTML
+        showToast.info('Đang xử lý in...');
       }
     } catch (error) {
       console.error('Error printing:', error);
-      showToast.error('Lỗi khi in bill: ' + (error.response?.data?.message || error.message));
+      // Nếu lỗi nhưng response là HTML, vẫn hiển thị
+      if (error.response && error.response.data && typeof error.response.data === 'string') {
+        const blob = new Blob([error.response.data], { type: 'text/html; charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(url);
+              printWindow.close();
+            }, 1000);
+          };
+        }
+        showToast.info('Đang mở cửa sổ in (máy in không khả dụng)');
+      } else {
+        showToast.error('Lỗi khi in bill: ' + (error.response?.data?.message || error.message));
+      }
     } finally {
       setPrinting(false);
     }

@@ -341,8 +341,38 @@ const printShift = async (req, res) => {
       Buffer.from([0x0A, 0x0A, 0x0A]), // Feed paper
     ]);
 
+    // Kiểm tra kết nối máy in trước khi in
+    const checkPrinterConnection = () => {
+      return new Promise((resolve, reject) => {
+        const testClient = new net.Socket();
+        testClient.setTimeout(3000);
+        
+        testClient.connect(printerPort, printerIP, () => {
+          console.log(`Printer connection test successful: ${printerIP}:${printerPort}`);
+          testClient.destroy();
+          resolve(true);
+        });
+
+        testClient.on('error', (err) => {
+          console.error('Printer connection test failed:', err.message);
+          testClient.destroy();
+          reject(err);
+        });
+
+        testClient.on('timeout', () => {
+          console.error('Printer connection test timeout');
+          testClient.destroy();
+          reject(new Error('Printer connection timeout'));
+        });
+      });
+    };
+
     // Gửi đến máy in qua socket
     try {
+      // Kiểm tra kết nối trước
+      await checkPrinterConnection();
+      console.log('Printer is reachable, sending print command...');
+
       await new Promise((resolve, reject) => {
         const client = new net.Socket();
         let resolved = false;
@@ -351,12 +381,26 @@ const printShift = async (req, res) => {
         
         client.connect(printerPort, printerIP, () => {
           console.log(`Connected to printer at ${printerIP}:${printerPort}`);
-          client.write(escposCommands);
-          client.end();
-          if (!resolved) {
-            resolved = true;
-            resolve();
-          }
+          // Gửi lệnh in
+          client.write(escposCommands, (err) => {
+            if (err) {
+              console.error('Error writing to printer:', err);
+              if (!resolved) {
+                resolved = true;
+                reject(err);
+              }
+            } else {
+              console.log('Print command sent successfully');
+              // Đợi một chút để đảm bảo dữ liệu được gửi
+              setTimeout(() => {
+                client.end();
+                if (!resolved) {
+                  resolved = true;
+                  resolve();
+                }
+              }, 500);
+            }
+          });
         });
 
         client.on('error', (err) => {
@@ -385,7 +429,8 @@ const printShift = async (req, res) => {
       res.json({ 
         message: 'Đã gửi lệnh in đến máy in thành công',
         printerIP,
-        printerPort 
+        printerPort,
+        success: true
       });
     } catch (printerError) {
       console.error('Failed to print directly to printer:', printerError);

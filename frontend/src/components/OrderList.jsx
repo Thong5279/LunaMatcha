@@ -5,6 +5,7 @@ import OrderDetail from './OrderDetail';
 import LoadingSkeleton from './LoadingSkeleton';
 import EmptyState from './EmptyState';
 import ConfirmModal from './ConfirmModal';
+import ChangeCalculator from './ChangeCalculator';
 import { HiClipboardDocumentList } from 'react-icons/hi2';
 import { HiBanknotes, HiCreditCard } from 'react-icons/hi2';
 
@@ -13,6 +14,8 @@ const OrderList = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [showRefundCalculator, setShowRefundCalculator] = useState(false);
+  const [refundOrder, setRefundOrder] = useState(null);
   const [filterDate, setFilterDate] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, orderId: null, isLoading: false });
 
@@ -66,14 +69,19 @@ const OrderList = () => {
     setShowDetail(true);
   };
 
-  const handleReorder = async (order) => {
-    try {
-      await orderService.create({ items: order.items });
-      showToast.success('Đã tạo đơn hàng mới từ đơn cũ');
-    } catch (error) {
-      showToast.error('Lỗi khi tạo đơn hàng mới');
-      console.error(error);
-    }
+  const handleRefund = (order) => {
+    setRefundOrder(order);
+    setShowRefundCalculator(true);
+  };
+
+  const handleRefundConfirm = async (customerPaid, change, paymentMethod) => {
+    if (!refundOrder) return;
+
+    // Chỉ mở ChangeCalculator để tính tiền thối
+    // Không tạo order mới, chỉ hiển thị số tiền cần thối
+    showToast.success(`Cần thối lại: ${new Intl.NumberFormat('vi-VN').format(refundOrder.totalAmount)} đ`);
+    setShowRefundCalculator(false);
+    setRefundOrder(null);
   };
 
   const formatDate = (dateString) => {
@@ -174,10 +182,10 @@ const OrderList = () => {
                     Sửa
                   </button>
                   <button
-                    onClick={() => handleReorder(order)}
-                    className="px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent-dark min-h-[44px] transition-colors"
+                    onClick={() => handleRefund(order)}
+                    className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 min-h-[44px] transition-colors"
                   >
-                    Làm lại
+                    Thối tiền
                   </button>
                   <button
                     onClick={() => handleDeleteClick(order._id)}
@@ -239,6 +247,18 @@ const OrderList = () => {
         type="danger"
         isLoading={deleteConfirm.isLoading}
       />
+
+      {/* Refund Calculator Modal */}
+      {showRefundCalculator && refundOrder && (
+        <ChangeCalculator
+          totalAmount={refundOrder.totalAmount}
+          onConfirm={handleRefundConfirm}
+          onCancel={() => {
+            setShowRefundCalculator(false);
+            setRefundOrder(null);
+          }}
+        />
+      )}
     </>
   );
 };

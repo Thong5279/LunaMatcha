@@ -4,8 +4,7 @@ import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
 import OrderReviewModal from './OrderReviewModal';
 import RecipeViewer from './RecipeViewer';
-import HeldOrdersModal from './HeldOrdersModal';
-import { HiTrash, HiClock } from 'react-icons/hi2';
+import { HiTrash } from 'react-icons/hi2';
 import { toppingService } from '../services/toppingService';
 import { orderService } from '../services/orderService';
 import showToast from '../utils/toast';
@@ -17,7 +16,6 @@ const SellMode = ({ onComplete }) => {
   const [showToppingSelector, setShowToppingSelector] = useState(false);
   const [showOrderReview, setShowOrderReview] = useState(false);
   const [showChangeCalculator, setShowChangeCalculator] = useState(false);
-  const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showRecipe, setShowRecipe] = useState(false);
 
@@ -156,43 +154,6 @@ const SellMode = ({ onComplete }) => {
     }
   };
 
-  const handleHoldOrder = async () => {
-    if (cart.length === 0) {
-      showToast.error('Vui lòng thêm ít nhất một sản phẩm');
-      return;
-    }
-
-    try {
-      // Lấy ngày hôm nay theo local time (YYYY-MM-DD)
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const orderDate = `${year}-${month}-${day}`;
-
-      const orderData = {
-        items: cart,
-        customerPaid: 0,
-        change: 0,
-        paymentMethod: 'cash',
-        orderDate,
-        status: 'held', // Đánh dấu là đơn hàng đã tạm giữ
-      };
-
-      await orderService.create(orderData);
-      showToast.success('Đã tạm giữ đơn hàng');
-      setCart([]);
-    } catch (error) {
-      showToast.error('Lỗi khi tạm giữ đơn hàng');
-      console.error(error);
-    }
-  };
-
-  const handleRestoreOrder = (order) => {
-    // Khôi phục order vào cart
-    setCart(order.items);
-    showToast.success('Đã khôi phục đơn hàng vào giỏ hàng');
-  };
 
   return (
     <div className={cart.length > 0 ? "pb-80" : "pb-24"}>
@@ -266,21 +227,12 @@ const SellMode = ({ onComplete }) => {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={handleHoldOrder}
-                className="py-2.5 px-3 bg-gray-500 text-white font-semibold text-xs hover:bg-gray-600 transition-colors rounded-lg flex items-center justify-center gap-1"
-              >
-                <HiClock className="w-4 h-4" />
-                Tạm giữ
-              </button>
-              <button
-                onClick={handleComplete}
-                className="py-2.5 px-3 bg-accent text-white font-semibold text-xs hover:bg-accent-dark transition-colors rounded-lg"
-              >
-                Hoàn tất
-              </button>
-            </div>
+            <button
+              onClick={handleComplete}
+              className="w-full py-3 bg-accent text-white font-semibold text-sm hover:bg-accent-dark transition-colors"
+            >
+              Hoàn tất đơn hàng
+            </button>
           </div>
         </div>
       )}
@@ -317,13 +269,6 @@ const SellMode = ({ onComplete }) => {
           onCancel={() => setShowChangeCalculator(false)}
         />
       )}
-
-      {/* Held Orders Modal */}
-      <HeldOrdersModal
-        isOpen={showHeldOrders}
-        onClose={() => setShowHeldOrders(false)}
-        onRestore={handleRestoreOrder}
-      />
     </div>
   );
 };

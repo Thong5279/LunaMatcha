@@ -4,18 +4,15 @@ import SellMode from '../components/SellMode';
 import ProductForm from '../components/ProductForm';
 import ToppingManager from '../components/ToppingManager';
 import CelebrationModal from '../components/CelebrationModal';
-import HeldOrdersModal from '../components/HeldOrdersModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
-import { HiClock } from 'react-icons/hi2';
 
 const Home = () => {
   const [isSellMode, setIsSellMode] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showToppingManager, setShowToppingManager] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
 
   // Xử lý khi bấm vào linh vật
@@ -99,15 +96,6 @@ const Home = () => {
               </button>
             </>
           )}
-          {isSellMode && (
-            <button
-              onClick={() => setShowHeldOrders(true)}
-              className="px-3 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
-              aria-label="Đơn hàng đã tạm giữ"
-            >
-              <HiClock className="w-5 h-5" />
-            </button>
-          )}
         </div>
       </div>
 
@@ -136,18 +124,6 @@ const Home = () => {
         />
       )}
 
-      {/* Held Orders Modal */}
-      {isSellMode && (
-        <HeldOrdersModal
-          isOpen={showHeldOrders}
-          onClose={() => setShowHeldOrders(false)}
-          onRestore={() => {
-            // Restore order vào SellMode - cần truyền callback
-            setShowHeldOrders(false);
-            showToast.success('Đã khôi phục đơn hàng. Vui lòng thêm vào giỏ hàng từ SellMode.');
-          }}
-        />
-      )}
     </div>
   );
 };
