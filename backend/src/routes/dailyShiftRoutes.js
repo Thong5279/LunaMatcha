@@ -9,8 +9,8 @@ const {
 
 router.get('/', getOrCreateShift);
 router.get('/list', getShifts);
+router.post('/:id/print', printShift); // Đặt trước route /:id/start-amount để tránh conflict
 router.put('/:id/start-amount', updateStartAmount);
-router.post('/:id/print', printShift);
 
 module.exports = router;
 

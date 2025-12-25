@@ -1,5 +1,6 @@
 const DailyShift = require('../models/DailyShift');
 const Order = require('../models/Order');
+const net = require('net');
 
 // Lấy hoặc tạo ca làm việc cho ngày
 const getOrCreateShift = async (req, res) => {
@@ -307,17 +308,91 @@ const printShift = async (req, res) => {
 </html>
     `;
 
-    // Gửi HTML đến máy in qua IP
+    // Gửi trực tiếp đến máy in qua IP
     const printerIP = '192.168.0.4';
-    const printerPort = 9100; // Port mặc định cho network printer
+    const printerPort = 9100; // Port mặc định cho network printer (raw printing)
 
-    // Sử dụng http request để gửi đến máy in
-    // Lưu ý: Cần cài đặt thư viện để gửi raw data đến máy in
-    // Hoặc có thể trả về HTML để frontend in trực tiếp
+    // Tạo ESC/POS commands cho máy in nhiệt
+    // ESC/POS là chuẩn phổ biến cho máy in bill
+    const escposCommands = Buffer.concat([
+      Buffer.from([0x1B, 0x40]), // Reset printer
+      Buffer.from([0x1B, 0x61, 0x01]), // Center align
+      Buffer.from([0x1D, 0x21, 0x11]), // Double height and width
+      Buffer.from('LUNA MATCHA\n', 'utf8'),
+      Buffer.from([0x1D, 0x21, 0x00]), // Normal size
+      Buffer.from('Tong ket ca lam viec\n', 'utf8'),
+      Buffer.from([0x0A]), // Line feed
+      Buffer.from([0x1B, 0x61, 0x00]), // Left align
+      Buffer.from(`Ngay: ${formatDate(shift.date)}\n`, 'utf8'),
+      Buffer.from(`So don hang: ${shift.orders.length}\n`, 'utf8'),
+      Buffer.from('\n', 'utf8'),
+      Buffer.from(`Tien dau ca: ${formatCurrency(shift.startAmount)} d\n`, 'utf8'),
+      Buffer.from(`Doanh thu tien mat: ${formatCurrency(shift.cashAmount)} d\n`, 'utf8'),
+      Buffer.from(`Doanh thu chuyen khoan: ${formatCurrency(shift.bankTransferAmount)} d\n`, 'utf8'),
+      Buffer.from(`Tong doanh thu: ${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} d\n`, 'utf8'),
+      Buffer.from('\n', 'utf8'),
+      Buffer.from([0x1B, 0x45, 0x01]), // Bold
+      Buffer.from(`Tong tien co: ${formatCurrency(shift.startAmount + shift.endAmount)} d\n`, 'utf8'),
+      Buffer.from(`Tien lai: ${formatCurrency(shift.netAmount)} d\n`, 'utf8'),
+      Buffer.from([0x1B, 0x45, 0x00]), // Normal
+      Buffer.from('\n', 'utf8'),
+      Buffer.from(`In luc: ${new Date().toLocaleString('vi-VN')}\n`, 'utf8'),
+      Buffer.from([0x1D, 0x56, 0x41, 0x00]), // Cut paper
+      Buffer.from([0x0A, 0x0A, 0x0A]), // Feed paper
+    ]);
 
-    // Tạm thời trả về HTML để frontend xử lý in
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(htmlContent);
+    // Gửi đến máy in qua socket
+    try {
+      await new Promise((resolve, reject) => {
+        const client = new net.Socket();
+        let resolved = false;
+        
+        client.setTimeout(5000); // Timeout 5 giây
+        
+        client.connect(printerPort, printerIP, () => {
+          console.log(`Connected to printer at ${printerIP}:${printerPort}`);
+          client.write(escposCommands);
+          client.end();
+          if (!resolved) {
+            resolved = true;
+            resolve();
+          }
+        });
+
+        client.on('error', (err) => {
+          console.error('Printer connection error:', err);
+          if (!resolved) {
+            resolved = true;
+            reject(err);
+          }
+        });
+
+        client.on('timeout', () => {
+          console.error('Printer connection timeout');
+          client.destroy();
+          if (!resolved) {
+            resolved = true;
+            reject(new Error('Printer connection timeout'));
+          }
+        });
+
+        client.on('close', () => {
+          console.log('Printer connection closed');
+        });
+      });
+
+      // Nếu in thành công, trả về success
+      res.json({ 
+        message: 'Đã gửi lệnh in đến máy in thành công',
+        printerIP,
+        printerPort 
+      });
+    } catch (printerError) {
+      console.error('Failed to print directly to printer:', printerError);
+      // Nếu không kết nối được máy in, trả về HTML để frontend in
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.send(htmlContent);
+    }
   } catch (error) {
     console.error('Error printing shift:', error);
     res.status(500).json({ message: 'Lỗi khi in bill' });

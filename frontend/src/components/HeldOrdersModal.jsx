@@ -18,10 +18,13 @@ const HeldOrdersModal = ({ isOpen, onClose, onRestore }) => {
     try {
       setLoading(true);
       const response = await orderService.getHeld();
+      console.log('Held orders response:', response);
+      console.log('Held orders data:', response.data);
       setHeldOrders(response.data || []);
     } catch (error) {
       showToast.error('Không thể tải danh sách đơn hàng đã tạm giữ');
-      console.error(error);
+      console.error('Error fetching held orders:', error);
+      console.error('Error response:', error.response);
     } finally {
       setLoading(false);
     }

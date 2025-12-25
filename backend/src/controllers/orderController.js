@@ -39,7 +39,7 @@ const getOrders = async (req, res) => {
 // Tạo đơn hàng mới
 const createOrder = async (req, res) => {
   try {
-    const { items, customerPaid, change, paymentMethod, orderDate } = req.body;
+    const { items, customerPaid, change, paymentMethod, orderDate, status } = req.body;
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ message: 'Đơn hàng phải có ít nhất 1 sản phẩm' });
@@ -84,6 +84,10 @@ const createOrder = async (req, res) => {
       targetOrderDate.setHours(0, 0, 0, 0);
     }
 
+    const orderStatus = status || 'completed'; // Mặc định là 'completed', hoặc 'held' nếu được chỉ định
+    
+    console.log('Creating order with status:', orderStatus);
+    
     const order = new Order({
       items,
       totalAmount,
@@ -91,9 +95,12 @@ const createOrder = async (req, res) => {
       change: finalChange,
       paymentMethod: finalPaymentMethod,
       orderDate: targetOrderDate,
+      status: orderStatus,
+      heldAt: orderStatus === 'held' ? new Date() : null, // Set heldAt nếu status là 'held'
     });
 
     await order.save();
+    console.log('Order created:', order._id, 'Status:', order.status);
 
     // Tự động cập nhật DailyShift
     try {
@@ -387,12 +394,15 @@ const holdOrder = async (req, res) => {
 // Lấy danh sách held orders
 const getHeldOrders = async (req, res) => {
   try {
+    console.log('Fetching held orders...');
     const orders = await Order.find({ status: 'held' })
       .sort({ heldAt: -1 })
       .limit(50); // Giới hạn 50 đơn hàng gần nhất
 
+    console.log(`Found ${orders.length} held orders`);
     res.json(orders);
   } catch (error) {
+    console.error('Error fetching held orders:', error);
     res.status(500).json({ message: error.message });
   }
 };

@@ -149,27 +149,31 @@ const DailyShift = () => {
       setPrinting(true);
       const response = await dailyShiftService.print(shift._id);
       
-      // Tạo blob từ response và mở cửa sổ in
-      const blob = new Blob([response.data], { type: 'text/html; charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const printWindow = window.open(url, '_blank');
-      
-      if (printWindow) {
-        printWindow.onload = () => {
-          printWindow.print();
-          setTimeout(() => {
-            URL.revokeObjectURL(url);
-            printWindow.close();
-          }, 1000);
-        };
+      // Kiểm tra xem response có phải là JSON (in thành công) hay HTML (fallback)
+      if (response.data instanceof Blob) {
+        // Nếu là Blob, có nghĩa là server trả về HTML (fallback)
+        const url = URL.createObjectURL(response.data);
+        const printWindow = window.open(url, '_blank');
+        
+        if (printWindow) {
+          printWindow.onload = () => {
+            printWindow.print();
+            setTimeout(() => {
+              URL.revokeObjectURL(url);
+              printWindow.close();
+            }, 1000);
+          };
+        } else {
+          showToast.error('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+        }
+        showToast.info('Đang mở cửa sổ in (máy in không khả dụng)');
       } else {
-        showToast.error('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+        // Nếu là JSON, có nghĩa là đã gửi thành công đến máy in
+        showToast.success('Đã gửi lệnh in đến máy in thành công');
       }
-      
-      showToast.success('Đang in bill...');
     } catch (error) {
       console.error('Error printing:', error);
-      showToast.error('Lỗi khi in bill');
+      showToast.error('Lỗi khi in bill: ' + (error.response?.data?.message || error.message));
     } finally {
       setPrinting(false);
     }
