@@ -22,25 +22,25 @@ const CelebrationModal = ({ revenue, onClose }) => {
   const getCelebrationData = () => {
     if (revenue >= 500000) {
       return {
-        sticker: 'https://media.tenor.com/nmKjcoq2HZIAAAAi/bug-cat-capoo.gif',
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1766650346/bug-cat-capoo_fk2boh.gif',
         message: '🎉 Xuất sắc! Bạn đã đạt hơn 500k! 🎉',
         subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
       };
     } else if (revenue >= 400000) {
       return {
-        sticker: 'https://media.tenor.com/bz2SRHsDJgEAAAAi/bugcat-capoo.gif',
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1766650386/bugcat-capoo_yw1ltt.gif',
         message: '🎊 Tuyệt vời! Bạn đã đạt hơn 400k! 🎊',
         subMessage: 'bé iu của anh giỏi quá dị nè!',
       };
     } else if (revenue >= 300000) {
       return {
-        sticker: 'https://media.tenor.com/2xcaj7Iu1g0AAAAi/bug-cat.gif',
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1766650430/bug-cat_n9apec.gif',
         message: '🌟 Tuyệt vời! Bạn đã đạt hơn 300k! 🌟',
         subMessage: 'Ai giỏi quá dị nè chời!',
       };
     } else if (revenue >= 200000) {
       return {
-        sticker: 'https://media.tenor.com/Gp2PDF56kYcAAAAi/capoo-cat.gif',
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1766650462/capoo-cat_vqabit.gif',
         message: '🎈 Chúc mừng! Bạn đã đạt chỉ tiêu 200k! 🎈',
         subMessage: 'Cố gắng tiếp nhé bé iu của anh!',
       };
