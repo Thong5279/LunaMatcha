@@ -1,9 +1,15 @@
 const Recipe = require('../models/Recipe');
+const mongoose = require('mongoose');
 
 // Lấy công thức theo productId và size
 const getRecipe = async (req, res) => {
   try {
     const { productId, size } = req.params;
+    
+    // Validate productId
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'ProductId không hợp lệ' });
+    }
     
     if (!size || !['small', 'large'].includes(size)) {
       return res.status(400).json({ message: 'Size phải là small hoặc large' });
@@ -25,6 +31,12 @@ const getRecipe = async (req, res) => {
 const getRecipesByProduct = async (req, res) => {
   try {
     const { productId } = req.params;
+    
+    // Validate productId
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'ProductId không hợp lệ' });
+    }
+    
     const recipes = await Recipe.find({ productId }).populate('productId');
     res.json(recipes);
   } catch (error) {
@@ -63,6 +75,11 @@ const createOrUpdateRecipe = async (req, res) => {
     const { productId } = req.params;
     const { size, ingredients } = req.body;
     
+    // Validate productId
+    if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      return res.status(400).json({ message: 'ProductId không hợp lệ' });
+    }
+    
     if (!size || !['small', 'large'].includes(size)) {
       return res.status(400).json({ message: 'Size phải là small hoặc large' });
     }
@@ -72,18 +89,54 @@ const createOrUpdateRecipe = async (req, res) => {
     }
     
     // Validate ingredients
-    for (const ingredient of ingredients) {
-      if (!ingredient.name || !ingredient.amount || !ingredient.unit) {
-        return res.status(400).json({ message: 'Mỗi nguyên liệu phải có name, amount và unit' });
+    for (let i = 0; i < ingredients.length; i++) {
+      const ingredient = ingredients[i];
+      
+      // Kiểm tra các field bắt buộc
+      if (!ingredient.name || !ingredient.hasOwnProperty('amount') || !ingredient.unit) {
+        return res.status(400).json({ 
+          message: `Nguyên liệu thứ ${i + 1}: Mỗi nguyên liệu phải có name, amount và unit` 
+        });
       }
       
-      if (ingredient.amount <= 0) {
-        return res.status(400).json({ message: 'Số lượng nguyên liệu phải lớn hơn 0' });
+      // Validate name: trim và kiểm tra không rỗng
+      const trimmedName = typeof ingredient.name === 'string' ? ingredient.name.trim() : '';
+      if (!trimmedName) {
+        return res.status(400).json({ 
+          message: `Nguyên liệu thứ ${i + 1}: Tên nguyên liệu không được để trống` 
+        });
       }
       
+      // Validate amount: phải là number và không phải NaN
+      const amount = typeof ingredient.amount === 'number' 
+        ? ingredient.amount 
+        : parseFloat(ingredient.amount);
+      
+      if (isNaN(amount) || !isFinite(amount)) {
+        return res.status(400).json({ 
+          message: `Nguyên liệu thứ ${i + 1}: Số lượng nguyên liệu không hợp lệ` 
+        });
+      }
+      
+      if (amount <= 0) {
+        return res.status(400).json({ 
+          message: `Nguyên liệu thứ ${i + 1}: Số lượng nguyên liệu phải lớn hơn 0` 
+        });
+      }
+      
+      // Validate unit
       if (!['ml', 'g'].includes(ingredient.unit)) {
-        return res.status(400).json({ message: 'Đơn vị chỉ được phép là ml hoặc g' });
+        return res.status(400).json({ 
+          message: `Nguyên liệu thứ ${i + 1}: Đơn vị chỉ được phép là ml hoặc g` 
+        });
       }
+      
+      // Cập nhật lại ingredient với dữ liệu đã được validate và trim
+      ingredients[i] = {
+        name: trimmedName,
+        amount: amount,
+        unit: ingredient.unit,
+      };
     }
     
     // Tìm công thức hiện có hoặc tạo mới
@@ -105,10 +158,34 @@ const createOrUpdateRecipe = async (req, res) => {
       res.status(201).json(recipe);
     }
   } catch (error) {
+    // Log chi tiết lỗi để debug
+    console.error('Error in createOrUpdateRecipe:', {
+      productId,
+      size,
+      error: error.message,
+      stack: error.stack,
+      code: error.code,
+    });
+    
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Sản phẩm này đã có công thức cho size này' });
     }
-    res.status(500).json({ message: error.message });
+    
+    // Xử lý lỗi validation của mongoose
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({ 
+        message: 'Dữ liệu không hợp lệ', 
+        errors: messages 
+      });
+    }
+    
+    // Xử lý lỗi CastError (ObjectId không hợp lệ)
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+    }
+    
+    res.status(500).json({ message: 'Có lỗi xảy ra khi lưu công thức. Vui lòng thử lại sau.' });
   }
 };
 

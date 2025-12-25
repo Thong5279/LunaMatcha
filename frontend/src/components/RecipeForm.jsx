@@ -16,6 +16,9 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
   const fetchRecipe = async () => {
     try {
       setFetching(true);
+      // Clear form data ngay khi bắt đầu fetch để tránh race condition
+      setIngredients([{ name: '', amount: '', unit: 'ml' }]);
+      
       const response = await recipeService.getByProductIdAndSize(productId, selectedSize);
       if (response.data && response.data.ingredients) {
         setIngredients(response.data.ingredients);
@@ -25,7 +28,12 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
     } catch (error) {
       // Không có công thức, giữ nguyên form trống
       if (error.response?.status !== 404) {
-        console.error('Lỗi khi tải công thức:', error);
+        console.error('Lỗi khi tải công thức:', {
+          productId,
+          size: selectedSize,
+          error: error.response?.data || error.message,
+        });
+        showToast.error('Không thể tải công thức. Vui lòng thử lại.');
       }
       setIngredients([{ name: '', amount: '', unit: 'ml' }]);
     } finally {
@@ -54,15 +62,34 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
   };
 
   const validateForm = () => {
-    for (const ingredient of ingredients) {
-      if (!ingredient.name || !ingredient.name.trim()) {
-        return 'Vui lòng nhập tên nguyên liệu';
+    if (ingredients.length === 0) {
+      return 'Vui lòng thêm ít nhất một nguyên liệu';
+    }
+    
+    for (let i = 0; i < ingredients.length; i++) {
+      const ingredient = ingredients[i];
+      
+      // Validate name
+      if (!ingredient.name || typeof ingredient.name !== 'string' || !ingredient.name.trim()) {
+        return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập tên nguyên liệu`;
       }
-      if (!ingredient.amount || ingredient.amount <= 0) {
-        return 'Số lượng nguyên liệu phải lớn hơn 0';
+      
+      // Validate amount: kiểm tra NaN và giá trị hợp lệ
+      const amount = typeof ingredient.amount === 'number' 
+        ? ingredient.amount 
+        : parseFloat(ingredient.amount);
+      
+      if (isNaN(amount) || !isFinite(amount) || amount === '' || amount === null || amount === undefined) {
+        return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng hợp lệ`;
       }
-      if (!['ml', 'g'].includes(ingredient.unit)) {
-        return 'Đơn vị chỉ được phép là ml hoặc g';
+      
+      if (amount <= 0) {
+        return `Nguyên liệu thứ ${i + 1}: Số lượng nguyên liệu phải lớn hơn 0`;
+      }
+      
+      // Validate unit
+      if (!ingredient.unit || !['ml', 'g'].includes(ingredient.unit)) {
+        return `Nguyên liệu thứ ${i + 1}: Đơn vị chỉ được phép là ml hoặc g`;
       }
     }
     return null;
@@ -70,6 +97,12 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Prevent submit khi đang fetch
+    if (fetching) {
+      showToast.error('Vui lòng đợi công thức được tải xong');
+      return;
+    }
     
     const error = validateForm();
     if (error) {
@@ -79,13 +112,30 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
 
     setLoading(true);
     try {
+      // Validate và chuẩn hóa dữ liệu trước khi gửi
       const recipeData = {
         size: selectedSize,
-        ingredients: ingredients.map(ing => ({
-          name: ing.name.trim(),
-          amount: parseFloat(ing.amount),
-          unit: ing.unit,
-        })),
+        ingredients: ingredients.map((ing, index) => {
+          const amount = typeof ing.amount === 'number' 
+            ? ing.amount 
+            : parseFloat(ing.amount);
+          
+          // Double check validation trước khi gửi
+          if (isNaN(amount) || !isFinite(amount) || amount <= 0) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng không hợp lệ`);
+          }
+          
+          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
+          if (!trimmedName) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          }
+          
+          return {
+            name: trimmedName,
+            amount: amount,
+            unit: ing.unit,
+          };
+        }),
       };
 
       await recipeService.createOrUpdate(productId, recipeData);
@@ -95,8 +145,17 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
       }
       onClose();
     } catch (error) {
-      showToast.error(error.response?.data?.message || 'Có lỗi xảy ra khi lưu công thức');
-      console.error(error);
+      const errorMessage = error.response?.data?.message 
+        || error.message 
+        || 'Có lỗi xảy ra khi lưu công thức';
+      
+      showToast.error(errorMessage);
+      console.error('Error saving recipe:', {
+        productId,
+        size: selectedSize,
+        error: error.response?.data || error.message,
+        stack: error.stack,
+      });
     } finally {
       setLoading(false);
     }
@@ -130,22 +189,24 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
               <button
                 type="button"
                 onClick={() => setSelectedSize('small')}
+                disabled={fetching || loading}
                 className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
                   selectedSize === 'small'
                     ? 'border-accent bg-accent text-white'
                     : 'border-gray-300 bg-white text-gray-700'
-                }`}
+                } ${fetching || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Nhỏ
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedSize('large')}
+                disabled={fetching || loading}
                 className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
                   selectedSize === 'large'
                     ? 'border-accent bg-accent text-white'
                     : 'border-gray-300 bg-white text-gray-700'
-                }`}
+                } ${fetching || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 Lớn
               </button>
@@ -215,7 +276,10 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
           <button
             type="button"
             onClick={handleAddIngredient}
-            className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-accent hover:text-accent transition-colors flex items-center justify-center gap-2"
+            disabled={fetching || loading}
+            className={`w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-accent hover:text-accent transition-colors flex items-center justify-center gap-2 ${
+              fetching || loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             <HiPlus className="w-5 h-5" />
             Thêm nguyên liệu
@@ -231,10 +295,10 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || fetching}
               className="flex-1 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary-dark disabled:opacity-50 transition-colors"
             >
-              {loading ? 'Đang lưu...' : 'Lưu công thức'}
+              {loading ? 'Đang lưu...' : fetching ? 'Đang tải...' : 'Lưu công thức'}
             </button>
           </div>
         </form>
