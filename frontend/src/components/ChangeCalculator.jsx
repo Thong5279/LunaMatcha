@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import showToast from '../utils/toast';
 import { HiXMark } from 'react-icons/hi2';
 
-const ChangeCalculator = ({ totalAmount, onConfirm, onCancel }) => {
+const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = false }) => {
   const [customerPaid, setCustomerPaid] = useState('');
   const [change, setChange] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash', 'exact_amount', 'bank_transfer'
@@ -57,6 +57,11 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel }) => {
   };
 
   const handleConfirm = () => {
+    // Tránh double-click
+    if (isSubmitting) {
+      return;
+    }
+
     if (paymentMethod === 'cash') {
       const paid = parseFloat(customerPaid) || 0;
       if (paid < totalAmount) {
@@ -222,16 +227,27 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel }) => {
           <div className="flex gap-3 pt-4">
             <button
               onClick={onCancel}
-              className="flex-1 py-3 px-4 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold"
+              disabled={isSubmitting}
+              className="flex-1 py-3 px-4 border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Hủy
             </button>
             <button
               onClick={handleConfirm}
-              disabled={paymentMethod === 'cash' && (!customerPaid || parseFloat(customerPaid) < totalAmount)}
-              className="flex-1 py-3 px-4 bg-accent text-white rounded-lg hover:bg-accent-dark font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={
+                isSubmitting || 
+                (paymentMethod === 'cash' && (!customerPaid || parseFloat(customerPaid) < totalAmount))
+              }
+              className="flex-1 py-3 px-4 bg-accent text-white rounded-lg hover:bg-accent-dark font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              Xác nhận
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin">⏳</span>
+                  <span>Đang xử lý...</span>
+                </>
+              ) : (
+                'Xác nhận'
+              )}
             </button>
           </div>
         </div>

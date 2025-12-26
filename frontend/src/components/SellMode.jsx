@@ -18,6 +18,7 @@ const SellMode = ({ onComplete }) => {
   const [showChangeCalculator, setShowChangeCalculator] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showRecipe, setShowRecipe] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchToppings();
@@ -126,7 +127,14 @@ const SellMode = ({ onComplete }) => {
   }, []);
 
   const handleConfirmOrder = async (customerPaid, change, paymentMethod) => {
+    // Tránh double-click
+    if (isSubmitting) {
+      return;
+    }
+
     try {
+      setIsSubmitting(true);
+      
       // Lấy ngày hôm nay theo local time (YYYY-MM-DD)
       const today = new Date();
       const year = today.getFullYear();
@@ -151,6 +159,8 @@ const SellMode = ({ onComplete }) => {
     } catch (error) {
       showToast.error('Lỗi khi tạo đơn hàng');
       console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -266,7 +276,12 @@ const SellMode = ({ onComplete }) => {
         <ChangeCalculator
           totalAmount={totalAmount}
           onConfirm={handleConfirmOrder}
-          onCancel={() => setShowChangeCalculator(false)}
+          onCancel={() => {
+            if (!isSubmitting) {
+              setShowChangeCalculator(false);
+            }
+          }}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>
