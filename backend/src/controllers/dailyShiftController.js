@@ -1,6 +1,5 @@
 const DailyShift = require('../models/DailyShift');
 const Order = require('../models/Order');
-const net = require('net');
 
 // Lấy hoặc tạo ca làm việc cho ngày
 const getOrCreateShift = async (req, res) => {
@@ -173,7 +172,7 @@ const printShift = async (req, res) => {
       return res.status(404).json({ message: 'Không tìm thấy ca làm việc' });
     }
 
-    // Tạo HTML template cho bill
+    // Helper functions
     const formatCurrency = (amount) => {
       return new Intl.NumberFormat('vi-VN').format(amount);
     };
@@ -185,132 +184,6 @@ const printShift = async (req, res) => {
         day: '2-digit',
       });
     };
-
-    const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Tổng kết ca làm việc</title>
-  <style>
-    @media print {
-      @page {
-        size: 80mm auto;
-        margin: 0;
-      }
-      body {
-        margin: 0;
-        padding: 10px;
-      }
-    }
-    body {
-      font-family: Arial, sans-serif;
-      font-size: 12px;
-      padding: 10px;
-      margin: 0;
-    }
-    .header {
-      text-align: center;
-      margin-bottom: 15px;
-      border-bottom: 2px solid #000;
-      padding-bottom: 10px;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: bold;
-    }
-    .info {
-      margin-bottom: 10px;
-    }
-    .info-row {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 5px;
-    }
-    .label {
-      font-weight: bold;
-    }
-    .value {
-      text-align: right;
-    }
-    .section {
-      margin-top: 15px;
-      padding-top: 10px;
-      border-top: 1px solid #ccc;
-    }
-    .total {
-      font-size: 16px;
-      font-weight: bold;
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 2px solid #000;
-    }
-    .footer {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 10px;
-      color: #666;
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>LUNA MATCHA</h1>
-    <p>Tổng kết ca làm việc</p>
-  </div>
-  
-  <div class="info">
-    <div class="info-row">
-      <span class="label">Ngày:</span>
-      <span class="value">${formatDate(shift.date)}</span>
-    </div>
-    <div class="info-row">
-      <span class="label">Số đơn hàng:</span>
-      <span class="value">${shift.orders.length}</span>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="info-row">
-      <span class="label">Tiền đầu ca:</span>
-      <span class="value">${formatCurrency(shift.startAmount)} đ</span>
-    </div>
-    <div class="info-row">
-      <span class="label">Doanh thu tiền mặt:</span>
-      <span class="value">${formatCurrency(shift.cashAmount)} đ</span>
-    </div>
-    <div class="info-row">
-      <span class="label">Doanh thu chuyển khoản:</span>
-      <span class="value">${formatCurrency(shift.bankTransferAmount)} đ</span>
-    </div>
-    <div class="info-row">
-      <span class="label">Tổng doanh thu:</span>
-      <span class="value">${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} đ</span>
-    </div>
-  </div>
-
-  <div class="section total">
-    <div class="info-row">
-      <span class="label">Tổng tiền có:</span>
-      <span class="value">${formatCurrency(shift.startAmount + shift.endAmount)} đ</span>
-    </div>
-    <div class="info-row">
-      <span class="label">Tiền lãi:</span>
-      <span class="value">${formatCurrency(shift.netAmount)} đ</span>
-    </div>
-  </div>
-
-  <div class="footer">
-    <p>In lúc: ${new Date().toLocaleString('vi-VN')}</p>
-  </div>
-</body>
-</html>
-    `;
-
-    // Gửi trực tiếp đến máy in qua IP
-    const printerIP = '192.168.0.4';
-    const printerPort = 9100; // Port mặc định cho network printer (raw printing)
 
     // Tạo ESC/POS commands cho máy in nhiệt
     // ESC/POS là chuẩn phổ biến cho máy in bill
@@ -341,103 +214,12 @@ const printShift = async (req, res) => {
       Buffer.from([0x0A, 0x0A, 0x0A]), // Feed paper
     ]);
 
-    // Kiểm tra kết nối máy in trước khi in
-    const checkPrinterConnection = () => {
-      return new Promise((resolve, reject) => {
-        const testClient = new net.Socket();
-        testClient.setTimeout(3000);
-        
-        testClient.connect(printerPort, printerIP, () => {
-          console.log(`Printer connection test successful: ${printerIP}:${printerPort}`);
-          testClient.destroy();
-          resolve(true);
-        });
-
-        testClient.on('error', (err) => {
-          console.error('Printer connection test failed:', err.message);
-          testClient.destroy();
-          reject(err);
-        });
-
-        testClient.on('timeout', () => {
-          console.error('Printer connection test timeout');
-          testClient.destroy();
-          reject(new Error('Printer connection timeout'));
-        });
-      });
-    };
-
-    // Gửi đến máy in qua socket
-    try {
-      // Kiểm tra kết nối trước
-      await checkPrinterConnection();
-      console.log('Printer is reachable, sending print command...');
-
-      await new Promise((resolve, reject) => {
-        const client = new net.Socket();
-        let resolved = false;
-        
-        client.setTimeout(5000); // Timeout 5 giây
-        
-        client.connect(printerPort, printerIP, () => {
-          console.log(`Connected to printer at ${printerIP}:${printerPort}`);
-          // Gửi lệnh in
-          client.write(escposCommands, (err) => {
-            if (err) {
-              console.error('Error writing to printer:', err);
-              if (!resolved) {
-                resolved = true;
-                reject(err);
-              }
-            } else {
-              console.log('Print command sent successfully');
-              // Đợi một chút để đảm bảo dữ liệu được gửi
-              setTimeout(() => {
-                client.end();
-                if (!resolved) {
-                  resolved = true;
-                  resolve();
-                }
-              }, 500);
-            }
-          });
-        });
-
-        client.on('error', (err) => {
-          console.error('Printer connection error:', err);
-          if (!resolved) {
-            resolved = true;
-            reject(err);
-          }
-        });
-
-        client.on('timeout', () => {
-          console.error('Printer connection timeout');
-          client.destroy();
-          if (!resolved) {
-            resolved = true;
-            reject(new Error('Printer connection timeout'));
-          }
-        });
-
-        client.on('close', () => {
-          console.log('Printer connection closed');
-        });
-      });
-
-      // Nếu in thành công, trả về success
-      res.json({ 
-        message: 'Đã gửi lệnh in đến máy in thành công',
-        printerIP,
-        printerPort,
-        success: true
-      });
-    } catch (printerError) {
-      console.error('Failed to print directly to printer:', printerError);
-      // Nếu không kết nối được máy in, trả về HTML để frontend in
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-      res.send(htmlContent);
-    }
+    // Trả về ESC/POS binary data để frontend chia sẻ qua Web Share API
+    const fileName = `shift-${formatDate(shift.date).replace(/\//g, '-')}.escpos`;
+    
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(escposCommands);
   } catch (error) {
     console.error('Error printing shift:', error);
     res.status(500).json({ message: 'Lỗi khi in bill' });

@@ -145,58 +145,64 @@ const DailyShift = () => {
       return;
     }
 
+    // Kiểm tra Web Share API support
+    if (!navigator.share) {
+      showToast.error('Trình duyệt không hỗ trợ tính năng chia sẻ. Vui lòng sử dụng Safari trên iOS hoặc Chrome trên Android.');
+      return;
+    }
+
     try {
       setPrinting(true);
       const response = await dailyShiftService.print(shift._id);
       
-      // Kiểm tra xem response có phải là JSON (in thành công) hay HTML (fallback)
-      if (response.data && typeof response.data === 'object' && response.data.success) {
-        // Nếu là JSON với success: true, có nghĩa là đã gửi thành công đến máy in
-        showToast.success('Đã gửi lệnh in đến máy in thành công');
-      } else if (response.data instanceof Blob || response.headers['content-type']?.includes('text/html')) {
-        // Nếu là Blob hoặc HTML, có nghĩa là server trả về HTML (fallback)
-        const blob = response.data instanceof Blob 
-          ? response.data 
-          : new Blob([response.data], { type: 'text/html; charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, '_blank');
-        
-        if (printWindow) {
-          printWindow.onload = () => {
-            printWindow.print();
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-              printWindow.close();
-            }, 1000);
-          };
-        } else {
-          showToast.error('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
-        }
-        showToast.info('Đang mở cửa sổ in (máy in không khả dụng)');
-      } else {
-        // Fallback: thử parse như HTML
-        showToast.info('Đang xử lý in...');
+      // Kiểm tra xem response có phải là Blob (ESC/POS binary data)
+      if (!(response.data instanceof Blob)) {
+        showToast.error('Không nhận được dữ liệu in từ server');
+        return;
       }
+
+      // Lấy tên file từ Content-Disposition header hoặc tạo tên mặc định
+      let fileName = 'shift-print.escpos';
+      const contentDisposition = response.headers['content-disposition'];
+      if (contentDisposition) {
+        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (fileNameMatch && fileNameMatch[1]) {
+          fileName = fileNameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Tạo File object từ Blob
+      const file = new File([response.data], fileName, {
+        type: 'application/octet-stream'
+      });
+
+      // Kiểm tra xem có thể chia sẻ file này không
+      if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
+        showToast.error('Không thể chia sẻ file này. Vui lòng thử lại.');
+        return;
+      }
+
+      // Hiển thị thông báo "Chia sẻ (Share)"
+      showToast.info('Chia sẻ (Share)');
+
+      // Sử dụng Web Share API để chia sẻ file
+      await navigator.share({
+        files: [file],
+        title: 'In tổng kết ca làm việc',
+        text: 'Chia sẻ file in đến Android (ESC/POS Print Service)'
+      });
+
+      showToast.success('Đã chia sẻ file in thành công');
     } catch (error) {
       console.error('Error printing:', error);
-      // Nếu lỗi nhưng response là HTML, vẫn hiển thị
-      if (error.response && error.response.data && typeof error.response.data === 'string') {
-        const blob = new Blob([error.response.data], { type: 'text/html; charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url, '_blank');
-        if (printWindow) {
-          printWindow.onload = () => {
-            printWindow.print();
-            setTimeout(() => {
-              URL.revokeObjectURL(url);
-              printWindow.close();
-            }, 1000);
-          };
-        }
-        showToast.info('Đang mở cửa sổ in (máy in không khả dụng)');
-      } else {
-        showToast.error('Lỗi khi in bill: ' + (error.response?.data?.message || error.message));
+      
+      // Nếu user cancel share, không hiển thị lỗi
+      if (error.name === 'AbortError') {
+        showToast.info('Đã hủy chia sẻ');
+        return;
       }
+
+      showToast.error('Lỗi khi chia sẻ file in: ' + (error.message || 'Lỗi không xác định'));
     } finally {
       setPrinting(false);
     }
