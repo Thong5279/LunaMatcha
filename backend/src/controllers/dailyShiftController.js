@@ -1,5 +1,6 @@
 const DailyShift = require('../models/DailyShift');
 const Order = require('../models/Order');
+const PDFDocument = require('pdfkit');
 
 // Lấy hoặc tạo ca làm việc cho ngày
 const getOrCreateShift = async (req, res) => {
@@ -185,41 +186,71 @@ const printShift = async (req, res) => {
       });
     };
 
-    // Tạo ESC/POS commands cho máy in nhiệt
-    // ESC/POS là chuẩn phổ biến cho máy in bill
-    const escposCommands = Buffer.concat([
-      Buffer.from([0x1B, 0x40]), // Reset printer
-      Buffer.from([0x1B, 0x61, 0x01]), // Center align
-      Buffer.from([0x1D, 0x21, 0x11]), // Double height and width
-      Buffer.from('LUNA MATCHA\n', 'utf8'),
-      Buffer.from([0x1D, 0x21, 0x00]), // Normal size
-      Buffer.from('Tong ket ca lam viec\n', 'utf8'),
-      Buffer.from([0x0A]), // Line feed
-      Buffer.from([0x1B, 0x61, 0x00]), // Left align
-      Buffer.from(`Ngay: ${formatDate(shift.date)}\n`, 'utf8'),
-      Buffer.from(`So don hang: ${shift.orders.length}\n`, 'utf8'),
-      Buffer.from('\n', 'utf8'),
-      Buffer.from(`Tien dau ca: ${formatCurrency(shift.startAmount)} d\n`, 'utf8'),
-      Buffer.from(`Doanh thu tien mat: ${formatCurrency(shift.cashAmount)} d\n`, 'utf8'),
-      Buffer.from(`Doanh thu chuyen khoan: ${formatCurrency(shift.bankTransferAmount)} d\n`, 'utf8'),
-      Buffer.from(`Tong doanh thu: ${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} d\n`, 'utf8'),
-      Buffer.from('\n', 'utf8'),
-      Buffer.from([0x1B, 0x45, 0x01]), // Bold
-      Buffer.from(`Tong tien co: ${formatCurrency(shift.startAmount + shift.endAmount)} d\n`, 'utf8'),
-      Buffer.from(`Tien lai: ${formatCurrency(shift.netAmount)} d\n`, 'utf8'),
-      Buffer.from([0x1B, 0x45, 0x00]), // Normal
-      Buffer.from('\n', 'utf8'),
-      Buffer.from(`In luc: ${new Date().toLocaleString('vi-VN')}\n`, 'utf8'),
-      Buffer.from([0x1D, 0x56, 0x41, 0x00]), // Cut paper
-      Buffer.from([0x0A, 0x0A, 0x0A]), // Feed paper
-    ]);
+    // Tạo PDF document
+    const doc = new PDFDocument({
+      size: 'A4',
+      margins: { top: 50, bottom: 50, left: 50, right: 50 }
+    });
 
-    // Trả về ESC/POS binary data để frontend chia sẻ qua Web Share API
-    const fileName = `shift-${formatDate(shift.date).replace(/\//g, '-')}.escpos`;
+    // Tạo buffer để lưu PDF
+    const buffers = [];
+    doc.on('data', buffers.push.bind(buffers));
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.concat(buffers);
+      const fileName = `shift-${formatDate(shift.date).replace(/\//g, '-')}.pdf`;
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+      res.send(pdfBuffer);
+    });
+
+    // Header - LUNA MATCHA (căn giữa, font lớn)
+    doc.fontSize(24)
+       .font('Helvetica-Bold')
+       .text('LUNA MATCHA', { align: 'center' });
     
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-    res.send(escposCommands);
+    doc.moveDown(0.5);
+    
+    // Tiêu đề
+    doc.fontSize(16)
+       .font('Helvetica')
+       .text('Tổng kết ca làm việc', { align: 'center' });
+    
+    doc.moveDown(1);
+
+    // Thông tin cơ bản
+    doc.fontSize(12)
+       .font('Helvetica')
+       .text(`Ngày: ${formatDate(shift.date)}`, { align: 'left' })
+       .text(`Số đơn hàng: ${shift.orders.length}`, { align: 'left' });
+    
+    doc.moveDown(1);
+
+    // Chi tiết tài chính
+    doc.fontSize(12)
+       .font('Helvetica')
+       .text(`Tiền đầu ca: ${formatCurrency(shift.startAmount)} đ`, { align: 'left' })
+       .text(`Doanh thu tiền mặt: ${formatCurrency(shift.cashAmount)} đ`, { align: 'left' })
+       .text(`Doanh thu chuyển khoản: ${formatCurrency(shift.bankTransferAmount)} đ`, { align: 'left' })
+       .text(`Tổng doanh thu: ${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} đ`, { align: 'left' });
+    
+    doc.moveDown(1);
+
+    // Tổng kết (bold)
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .text(`Tổng tiền có: ${formatCurrency(shift.startAmount + shift.endAmount)} đ`, { align: 'left' })
+       .text(`Tiền lãi: ${formatCurrency(shift.netAmount)} đ`, { align: 'left' });
+    
+    doc.moveDown(1);
+
+    // Footer
+    doc.fontSize(10)
+       .font('Helvetica')
+       .text(`In lúc: ${new Date().toLocaleString('vi-VN')}`, { align: 'center' });
+
+    // Kết thúc PDF
+    doc.end();
   } catch (error) {
     console.error('Error printing shift:', error);
     res.status(500).json({ message: 'Lỗi khi in bill' });

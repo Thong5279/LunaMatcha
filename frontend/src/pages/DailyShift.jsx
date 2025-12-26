@@ -139,72 +139,36 @@ const DailyShift = () => {
     }
   };
 
-  const handlePrint = async () => {
+  const handlePrint = () => {
     if (!shift || !shift._id) {
       showToast.error('Không có dữ liệu ca làm việc để in');
       return;
     }
 
-    // Kiểm tra Web Share API support
-    if (!navigator.share) {
-      showToast.error('Trình duyệt không hỗ trợ tính năng chia sẻ. Vui lòng sử dụng Safari trên iOS hoặc Chrome trên Android.');
-      return;
-    }
-
     try {
       setPrinting(true);
-      const response = await dailyShiftService.print(shift._id);
       
-      // Kiểm tra xem response có phải là Blob (ESC/POS binary data)
-      if (!(response.data instanceof Blob)) {
-        showToast.error('Không nhận được dữ liệu in từ server');
-        return;
+      // Lấy URL PDF từ service
+      const pdfUrl = dailyShiftService.print(shift._id);
+      
+      // Hiển thị thông báo
+      showToast.info('Đang mở PDF...');
+      
+      // Mở PDF trong tab mới
+      // iOS sẽ tự động hiện Share Sheet khi mở PDF
+      const printWindow = window.open(pdfUrl, '_blank');
+      
+      if (!printWindow) {
+        showToast.error('Không thể mở PDF. Vui lòng kiểm tra popup blocker.');
       }
-
-      // Lấy tên file từ Content-Disposition header hoặc tạo tên mặc định
-      let fileName = 'shift-print.escpos';
-      const contentDisposition = response.headers['content-disposition'];
-      if (contentDisposition) {
-        const fileNameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
-        if (fileNameMatch && fileNameMatch[1]) {
-          fileName = fileNameMatch[1].replace(/['"]/g, '');
-        }
-      }
-
-      // Tạo File object từ Blob
-      const file = new File([response.data], fileName, {
-        type: 'application/octet-stream'
-      });
-
-      // Kiểm tra xem có thể chia sẻ file này không
-      if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
-        showToast.error('Không thể chia sẻ file này. Vui lòng thử lại.');
-        return;
-      }
-
-      // Hiển thị thông báo "Chia sẻ (Share)"
-      showToast.info('Chia sẻ (Share)');
-
-      // Sử dụng Web Share API để chia sẻ file
-      await navigator.share({
-        files: [file],
-        title: 'In tổng kết ca làm việc',
-        text: 'Chia sẻ file in đến Android (ESC/POS Print Service)'
-      });
-
-      showToast.success('Đã chia sẻ file in thành công');
     } catch (error) {
       console.error('Error printing:', error);
-      
-      // Nếu user cancel share, không hiển thị lỗi
-      if (error.name === 'AbortError') {
-        showToast.info('Đã hủy chia sẻ');
-        return;
-      }
-
-      showToast.error('Lỗi khi chia sẻ file in: ' + (error.message || 'Lỗi không xác định'));
+      showToast.error('Lỗi khi mở PDF: ' + (error.message || 'Lỗi không xác định'));
     } finally {
-      setPrinting(false);
+      // Reset printing state sau một chút để user thấy feedback
+      setTimeout(() => {
+        setPrinting(false);
+      }, 1000);
     }
   };
 
