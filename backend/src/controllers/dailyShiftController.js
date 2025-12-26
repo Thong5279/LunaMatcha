@@ -1,6 +1,5 @@
 const DailyShift = require('../models/DailyShift');
 const Order = require('../models/Order');
-const PDFDocument = require('pdfkit');
 
 // Lấy hoặc tạo ca làm việc cho ngày
 const getOrCreateShift = async (req, res) => {
@@ -186,71 +185,192 @@ const printShift = async (req, res) => {
       });
     };
 
-    // Tạo PDF document
-    const doc = new PDFDocument({
-      size: 'A4',
-      margins: { top: 50, bottom: 50, left: 50, right: 50 }
-    });
-
-    // Tạo buffer để lưu PDF
-    const buffers = [];
-    doc.on('data', buffers.push.bind(buffers));
-    doc.on('end', () => {
-      const pdfBuffer = Buffer.concat(buffers);
-      const fileName = `shift-${formatDate(shift.date).replace(/\//g, '-')}.pdf`;
-      
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
-      res.send(pdfBuffer);
-    });
-
-    // Header - LUNA MATCHA (căn giữa, font lớn)
-    doc.fontSize(24)
-       .font('Helvetica-Bold')
-       .text('LUNA MATCHA', { align: 'center' });
+    // Tạo HTML page với window.print() tự động
+    const htmlContent = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tổng kết ca làm việc</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
     
-    doc.moveDown(0.5);
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #fff;
+    }
     
-    // Tiêu đề
-    doc.fontSize(16)
-       .font('Helvetica')
-       .text('Tổng kết ca làm việc', { align: 'center' });
+    @media print {
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+      body {
+        padding: 10px;
+        margin: 0;
+      }
+      .no-print {
+        display: none;
+      }
+    }
     
-    doc.moveDown(1);
-
-    // Thông tin cơ bản
-    doc.fontSize(12)
-       .font('Helvetica')
-       .text(`Ngày: ${formatDate(shift.date)}`, { align: 'left' })
-       .text(`Số đơn hàng: ${shift.orders.length}`, { align: 'left' });
+    .container {
+      max-width: 80mm;
+      margin: 0 auto;
+      padding: 10px;
+    }
     
-    doc.moveDown(1);
-
-    // Chi tiết tài chính
-    doc.fontSize(12)
-       .font('Helvetica')
-       .text(`Tiền đầu ca: ${formatCurrency(shift.startAmount)} đ`, { align: 'left' })
-       .text(`Doanh thu tiền mặt: ${formatCurrency(shift.cashAmount)} đ`, { align: 'left' })
-       .text(`Doanh thu chuyển khoản: ${formatCurrency(shift.bankTransferAmount)} đ`, { align: 'left' })
-       .text(`Tổng doanh thu: ${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} đ`, { align: 'left' });
+    .header {
+      text-align: center;
+      margin-bottom: 15px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+    }
     
-    doc.moveDown(1);
-
-    // Tổng kết (bold)
-    doc.fontSize(14)
-       .font('Helvetica-Bold')
-       .text(`Tổng tiền có: ${formatCurrency(shift.startAmount + shift.endAmount)} đ`, { align: 'left' })
-       .text(`Tiền lãi: ${formatCurrency(shift.netAmount)} đ`, { align: 'left' });
+    .header h1 {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
     
-    doc.moveDown(1);
+    .header p {
+      font-size: 16px;
+      margin-top: 5px;
+    }
+    
+    .info {
+      margin-bottom: 15px;
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 12px;
+    }
+    
+    .label {
+      font-weight: normal;
+    }
+    
+    .value {
+      text-align: right;
+    }
+    
+    .section {
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 1px solid #ccc;
+    }
+    
+    .total {
+      font-size: 14px;
+      font-weight: bold;
+      margin-top: 15px;
+      padding-top: 10px;
+      border-top: 2px solid #000;
+    }
+    
+    .total .info-row {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+    
+    .footer {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 10px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>LUNA MATCHA</h1>
+      <p>Tổng kết ca làm việc</p>
+    </div>
+    
+    <div class="info">
+      <div class="info-row">
+        <span class="label">Ngày:</span>
+        <span class="value">${formatDate(shift.date)}</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Số đơn hàng:</span>
+        <span class="value">${shift.orders.length}</span>
+      </div>
+    </div>
 
-    // Footer
-    doc.fontSize(10)
-       .font('Helvetica')
-       .text(`In lúc: ${new Date().toLocaleString('vi-VN')}`, { align: 'center' });
+    <div class="section">
+      <div class="info-row">
+        <span class="label">Tiền đầu ca:</span>
+        <span class="value">${formatCurrency(shift.startAmount)} đ</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Doanh thu tiền mặt:</span>
+        <span class="value">${formatCurrency(shift.cashAmount)} đ</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Doanh thu chuyển khoản:</span>
+        <span class="value">${formatCurrency(shift.bankTransferAmount)} đ</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Tổng doanh thu:</span>
+        <span class="value">${formatCurrency(shift.cashAmount + shift.bankTransferAmount)} đ</span>
+      </div>
+    </div>
 
-    // Kết thúc PDF
-    doc.end();
+    <div class="section total">
+      <div class="info-row">
+        <span class="label">Tổng tiền có:</span>
+        <span class="value">${formatCurrency(shift.startAmount + shift.endAmount)} đ</span>
+      </div>
+      <div class="info-row">
+        <span class="label">Tiền lãi:</span>
+        <span class="value">${formatCurrency(shift.netAmount)} đ</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>In lúc: ${new Date().toLocaleString('vi-VN')}</p>
+    </div>
+  </div>
+
+  <script>
+    // Tự động gọi window.print() khi page load
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 250);
+    };
+    
+    // Hoặc gọi ngay khi DOM ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(function() {
+          window.print();
+        }, 250);
+      });
+    } else {
+      setTimeout(function() {
+        window.print();
+      }, 250);
+    }
+  </script>
+</body>
+</html>
+    `;
+
+    // Trả về HTML
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(htmlContent);
   } catch (error) {
     console.error('Error printing shift:', error);
     res.status(500).json({ message: 'Lỗi khi in bill' });
