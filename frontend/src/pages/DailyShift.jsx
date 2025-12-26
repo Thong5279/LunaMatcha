@@ -5,6 +5,11 @@ import { dailyShiftService } from '../services/dailyShiftService';
 import CelebrationModal from '../components/CelebrationModal';
 import showToast from '../utils/toast';
 import { getTodayDate, isToday as isTodayHelper } from '../utils/dateHelper';
+import { 
+  checkAndroidApp, 
+  generateEscPosCommands, 
+  convertToBase64 
+} from '../utils/escposHelper';
 
 const DailyShift = () => {
   const navigate = useNavigate();
@@ -147,28 +152,83 @@ const DailyShift = () => {
 
     try {
       setPrinting(true);
-      
-      // Lấy URL PDF từ service
-      const pdfUrl = dailyShiftService.print(shift._id);
-      
-      // Hiển thị thông báo
-      showToast.info('Đang mở PDF...');
-      
-      // Mở PDF trong tab mới
-      // iOS sẽ tự động hiện Share Sheet khi mở PDF
-      const printWindow = window.open(pdfUrl, '_blank');
-      
-      if (!printWindow) {
-        showToast.error('Không thể mở PDF. Vui lòng kiểm tra popup blocker.');
+
+      // Kiểm tra Android app có sẵn không
+      if (checkAndroidApp()) {
+        // In qua Android app
+        printViaAndroid(shift);
+      } else {
+        // Fallback: HTML print page
+        printViaHtml(shift);
       }
     } catch (error) {
       console.error('Error printing:', error);
-      showToast.error('Lỗi khi mở PDF: ' + (error.message || 'Lỗi không xác định'));
-    } finally {
-      // Reset printing state sau một chút để user thấy feedback
-      setTimeout(() => {
+      showToast.error('Lỗi khi in: ' + (error.message || 'Lỗi không xác định'));
+      setPrinting(false);
+    }
+  };
+
+  // In qua Android app
+  const printViaAndroid = (shift) => {
+    try {
+      // Setup callbacks
+      window.onPrintSuccess = () => {
+        console.log('In thành công!');
+        showToast.success('In thành công!');
         setPrinting(false);
-      }, 1000);
+      };
+
+      window.onPrintError = (error) => {
+        console.error('Lỗi in:', error);
+        showToast.error('Lỗi khi in: ' + error);
+        setPrinting(false);
+      };
+
+      // Generate ESC/POS commands
+      const escposCommands = generateEscPosCommands(shift);
+      
+      // Convert to Base64
+      const escposBase64 = convertToBase64(escposCommands);
+
+      // Hiển thị thông báo
+      showToast.info('Đang gửi lệnh in đến máy in...');
+
+      // Gọi Android app
+      // IP mặc định: 192.168.0.4, Port: 9100
+      window.AndroidPrinter.print(escposBase64, '192.168.0.4', 9100);
+    } catch (error) {
+      console.error('Error printing via Android:', error);
+      showToast.error('Lỗi khi gọi Android app: ' + (error.message || 'Lỗi không xác định'));
+      setPrinting(false);
+    }
+  };
+
+  // Fallback: In qua HTML print page
+  const printViaHtml = (shift) => {
+    try {
+      // Lấy URL HTML print từ service
+      const printUrl = dailyShiftService.print(shift._id);
+      
+      // Hiển thị thông báo
+      showToast.info('Đang mở trang in...');
+      
+      // Mở HTML print page trong tab mới
+      // iOS sẽ tự động hiện Share Sheet khi mở
+      const printWindow = window.open(printUrl, '_blank');
+      
+      if (!printWindow) {
+        showToast.error('Không thể mở trang in. Vui lòng kiểm tra popup blocker.');
+        setPrinting(false);
+      } else {
+        // Reset printing state sau một chút
+        setTimeout(() => {
+          setPrinting(false);
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error printing via HTML:', error);
+      showToast.error('Lỗi khi mở trang in: ' + (error.message || 'Lỗi không xác định'));
+      setPrinting(false);
     }
   };
 
