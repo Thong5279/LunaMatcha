@@ -4,38 +4,79 @@ import { HiXMark, HiTrash, HiPlus } from 'react-icons/hi2';
 import showToast from '../utils/toast';
 
 const RecipeForm = ({ productId, productName, onClose, onSave }) => {
-  const [selectedSize, setSelectedSize] = useState('small');
-  const [ingredients, setIngredients] = useState([{ name: '', amount: '', unit: 'ml' }]);
+  const [ingredients, setIngredients] = useState([{ name: '', amountSmall: '', amountLarge: '', unit: 'ml' }]);
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    fetchRecipe();
-  }, [productId, selectedSize]);
+    fetchRecipes();
+  }, [productId]);
 
-  const fetchRecipe = async () => {
+  // Merge 2 recipes thành 1 form data
+  const mergeIngredients = (smallIngredients, largeIngredients) => {
+    // Tạo map để dễ tìm kiếm
+    const smallMap = new Map();
+    const largeMap = new Map();
+    
+    smallIngredients.forEach(ing => {
+      const key = `${ing.name.toLowerCase()}_${ing.unit}`;
+      smallMap.set(key, ing);
+    });
+    
+    largeIngredients.forEach(ing => {
+      const key = `${ing.name.toLowerCase()}_${ing.unit}`;
+      largeMap.set(key, ing);
+    });
+    
+    // Lấy tất cả keys từ cả 2 maps
+    const allKeys = new Set([...smallMap.keys(), ...largeMap.keys()]);
+    
+    // Merge thành mảng ingredients
+    const merged = Array.from(allKeys).map(key => {
+      const smallIng = smallMap.get(key);
+      const largeIng = largeMap.get(key);
+      
+      return {
+        name: smallIng?.name || largeIng?.name || '',
+        amountSmall: smallIng?.amount || '',
+        amountLarge: largeIng?.amount || '',
+        unit: smallIng?.unit || largeIng?.unit || 'ml',
+      };
+    });
+    
+    return merged.length > 0 ? merged : [{ name: '', amountSmall: '', amountLarge: '', unit: 'ml' }];
+  };
+
+  const fetchRecipes = async () => {
     try {
       setFetching(true);
-      // Clear form data ngay khi bắt đầu fetch để tránh race condition
-      setIngredients([{ name: '', amount: '', unit: 'ml' }]);
+      // Clear form data ngay khi bắt đầu fetch
+      setIngredients([{ name: '', amountSmall: '', amountLarge: '', unit: 'ml' }]);
       
-      const response = await recipeService.getByProductIdAndSize(productId, selectedSize);
-      if (response.data && response.data.ingredients) {
-        setIngredients(response.data.ingredients);
-      } else {
-        setIngredients([{ name: '', amount: '', unit: 'ml' }]);
-      }
+      // Load cả 2 recipes cùng lúc
+      const [smallRes, largeRes] = await Promise.allSettled([
+        recipeService.getByProductIdAndSize(productId, 'small'),
+        recipeService.getByProductIdAndSize(productId, 'large'),
+      ]);
+      
+      const smallIngredients = smallRes.status === 'fulfilled' && smallRes.value?.data?.ingredients 
+        ? smallRes.value.data.ingredients 
+        : [];
+      
+      const largeIngredients = largeRes.status === 'fulfilled' && largeRes.value?.data?.ingredients 
+        ? largeRes.value.data.ingredients 
+        : [];
+      
+      // Merge 2 recipes thành 1 form
+      const merged = mergeIngredients(smallIngredients, largeIngredients);
+      setIngredients(merged);
     } catch (error) {
-      // Không có công thức, giữ nguyên form trống
-      if (error.response?.status !== 404) {
-        console.error('Lỗi khi tải công thức:', {
-          productId,
-          size: selectedSize,
-          error: error.response?.data || error.message,
-        });
-        showToast.error('Không thể tải công thức. Vui lòng thử lại.');
-      }
-      setIngredients([{ name: '', amount: '', unit: 'ml' }]);
+      console.error('Lỗi khi tải công thức:', {
+        productId,
+        error: error.response?.data || error.message,
+      });
+      showToast.error('Không thể tải công thức. Vui lòng thử lại.');
+      setIngredients([{ name: '', amountSmall: '', amountLarge: '', unit: 'ml' }]);
     } finally {
       setFetching(false);
     }
@@ -43,7 +84,7 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
 
   const handleIngredientChange = (index, field, value) => {
     const newIngredients = [...ingredients];
-    if (field === 'amount') {
+    if (field === 'amountSmall' || field === 'amountLarge') {
       newIngredients[index][field] = value === '' ? '' : parseFloat(value) || '';
     } else {
       newIngredients[index][field] = value;
@@ -52,7 +93,7 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
   };
 
   const handleAddIngredient = () => {
-    setIngredients([...ingredients, { name: '', amount: '', unit: 'ml' }]);
+    setIngredients([...ingredients, { name: '', amountSmall: '', amountLarge: '', unit: 'ml' }]);
   };
 
   const handleRemoveIngredient = (index) => {
@@ -74,17 +115,30 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
         return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập tên nguyên liệu`;
       }
       
-      // Validate amount: kiểm tra NaN và giá trị hợp lệ
-      const amount = typeof ingredient.amount === 'number' 
-        ? ingredient.amount 
-        : parseFloat(ingredient.amount);
+      // Validate amountSmall
+      const amountSmall = typeof ingredient.amountSmall === 'number' 
+        ? ingredient.amountSmall 
+        : parseFloat(ingredient.amountSmall);
       
-      if (isNaN(amount) || !isFinite(amount) || amount === '' || amount === null || amount === undefined) {
-        return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng hợp lệ`;
+      if (isNaN(amountSmall) || !isFinite(amountSmall) || amountSmall === '' || amountSmall === null || amountSmall === undefined) {
+        return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng size nhỏ hợp lệ`;
       }
       
-      if (amount <= 0) {
-        return `Nguyên liệu thứ ${i + 1}: Số lượng nguyên liệu phải lớn hơn 0`;
+      if (amountSmall <= 0) {
+        return `Nguyên liệu thứ ${i + 1}: Số lượng size nhỏ phải lớn hơn 0`;
+      }
+      
+      // Validate amountLarge
+      const amountLarge = typeof ingredient.amountLarge === 'number' 
+        ? ingredient.amountLarge 
+        : parseFloat(ingredient.amountLarge);
+      
+      if (isNaN(amountLarge) || !isFinite(amountLarge) || amountLarge === '' || amountLarge === null || amountLarge === undefined) {
+        return `Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng size lớn hợp lệ`;
+      }
+      
+      if (amountLarge <= 0) {
+        return `Nguyên liệu thứ ${i + 1}: Số lượng size lớn phải lớn hơn 0`;
       }
       
       // Validate unit
@@ -112,17 +166,16 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
 
     setLoading(true);
     try {
-      // Validate và chuẩn hóa dữ liệu trước khi gửi
-      const recipeData = {
-        size: selectedSize,
+      // Tách thành 2 recipes riêng biệt
+      const smallRecipe = {
+        size: 'small',
         ingredients: ingredients.map((ing, index) => {
-          const amount = typeof ing.amount === 'number' 
-            ? ing.amount 
-            : parseFloat(ing.amount);
+          const amountSmall = typeof ing.amountSmall === 'number' 
+            ? ing.amountSmall 
+            : parseFloat(ing.amountSmall);
           
-          // Double check validation trước khi gửi
-          if (isNaN(amount) || !isFinite(amount) || amount <= 0) {
-            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng không hợp lệ`);
+          if (isNaN(amountSmall) || !isFinite(amountSmall) || amountSmall <= 0) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size nhỏ không hợp lệ`);
           }
           
           const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
@@ -132,14 +185,43 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
           
           return {
             name: trimmedName,
-            amount: amount,
+            amount: amountSmall,
             unit: ing.unit,
           };
         }),
       };
 
-      await recipeService.createOrUpdate(productId, recipeData);
-      showToast.success('Đã lưu công thức thành công');
+      const largeRecipe = {
+        size: 'large',
+        ingredients: ingredients.map((ing, index) => {
+          const amountLarge = typeof ing.amountLarge === 'number' 
+            ? ing.amountLarge 
+            : parseFloat(ing.amountLarge);
+          
+          if (isNaN(amountLarge) || !isFinite(amountLarge) || amountLarge <= 0) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size lớn không hợp lệ`);
+          }
+          
+          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
+          if (!trimmedName) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          }
+          
+          return {
+            name: trimmedName,
+            amount: amountLarge,
+            unit: ing.unit,
+          };
+        }),
+      };
+
+      // Lưu cả 2 recipes cùng lúc
+      await Promise.all([
+        recipeService.createOrUpdate(productId, smallRecipe),
+        recipeService.createOrUpdate(productId, largeRecipe),
+      ]);
+      
+      showToast.success('Đã lưu công thức cho cả 2 size thành công');
       if (onSave) {
         onSave();
       }
@@ -152,7 +234,6 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
       showToast.error(errorMessage);
       console.error('Error saving recipe:', {
         productId,
-        size: selectedSize,
         error: error.response?.data || error.message,
         stack: error.stack,
       });
@@ -182,37 +263,6 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
-          {/* Size Selector */}
-          <div>
-            <label className="block text-sm font-medium mb-2">Size</label>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedSize('small')}
-                disabled={fetching || loading}
-                className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
-                  selectedSize === 'small'
-                    ? 'border-accent bg-accent text-white'
-                    : 'border-gray-300 bg-white text-gray-700'
-                } ${fetching || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                Nhỏ
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedSize('large')}
-                disabled={fetching || loading}
-                className={`flex-1 py-2.5 px-3 rounded-lg border-2 font-semibold text-sm transition-all ${
-                  selectedSize === 'large'
-                    ? 'border-accent bg-accent text-white'
-                    : 'border-gray-300 bg-white text-gray-700'
-                } ${fetching || loading ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                Lớn
-              </button>
-            </div>
-          </div>
-
           <div className="space-y-3">
             {ingredients.map((ingredient, index) => (
               <div key={index} className="border rounded-lg p-3 space-y-2">
@@ -237,36 +287,52 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
                     onChange={(e) => handleIngredientChange(index, 'name', e.target.value)}
                     required
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                    placeholder="Ví dụ: Sữa tươi"
+                    placeholder="Ví dụ: Cacao"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Số lượng *</label>
-                    <input
-                      type="number"
-                      value={ingredient.amount}
-                      onChange={(e) => handleIngredientChange(index, 'amount', e.target.value)}
-                      required
-                      min="0.01"
-                      step="0.01"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                      placeholder="0"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Đơn vị *</label>
+                  <select
+                    value={ingredient.unit}
+                    onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="ml">ml</option>
+                    <option value="g">g</option>
+                  </select>
+                </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Đơn vị *</label>
-                    <select
-                      value={ingredient.unit}
-                      onChange={(e) => handleIngredientChange(index, 'unit', e.target.value)}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
-                    >
-                      <option value="ml">ml</option>
-                      <option value="g">g</option>
-                    </select>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Số lượng *</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Nhỏ</label>
+                      <input
+                        type="number"
+                        value={ingredient.amountSmall}
+                        onChange={(e) => handleIngredientChange(index, 'amountSmall', e.target.value)}
+                        required
+                        min="0.01"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Lớn</label>
+                      <input
+                        type="number"
+                        value={ingredient.amountLarge}
+                        onChange={(e) => handleIngredientChange(index, 'amountLarge', e.target.value)}
+                        required
+                        min="0.01"
+                        step="0.01"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
