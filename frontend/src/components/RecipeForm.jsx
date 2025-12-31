@@ -166,21 +166,74 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
 
     setLoading(true);
     try {
+      // Validate lại một lần nữa trước khi tạo recipe objects
+      // Đảm bảo không có giá trị rỗng, null, undefined
+      for (let i = 0; i < ingredients.length; i++) {
+        const ing = ingredients[i];
+        
+        // Validate name
+        if (!ing.name || typeof ing.name !== 'string' || !ing.name.trim()) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Tên không được để trống`);
+        }
+        
+        // Validate amountSmall
+        if (ing.amountSmall === '' || ing.amountSmall === null || ing.amountSmall === undefined) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng size nhỏ`);
+        }
+        
+        const amountSmall = typeof ing.amountSmall === 'number' 
+          ? ing.amountSmall 
+          : parseFloat(ing.amountSmall);
+        
+        if (isNaN(amountSmall) || !isFinite(amountSmall) || amountSmall <= 0) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Số lượng size nhỏ không hợp lệ`);
+        }
+        
+        // Validate amountLarge
+        if (ing.amountLarge === '' || ing.amountLarge === null || ing.amountLarge === undefined) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Vui lòng nhập số lượng size lớn`);
+        }
+        
+        const amountLarge = typeof ing.amountLarge === 'number' 
+          ? ing.amountLarge 
+          : parseFloat(ing.amountLarge);
+        
+        if (isNaN(amountLarge) || !isFinite(amountLarge) || amountLarge <= 0) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Số lượng size lớn không hợp lệ`);
+        }
+        
+        // Validate unit
+        if (!ing.unit || !['ml', 'g'].includes(ing.unit)) {
+          throw new Error(`Nguyên liệu thứ ${i + 1}: Đơn vị không hợp lệ`);
+        }
+      }
+      
       // Tách thành 2 recipes riêng biệt
+      // Validation logic phải giống với validateForm()
       const smallRecipe = {
         size: 'small',
         ingredients: ingredients.map((ing, index) => {
+          // Validate name trước
+          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
+          if (!trimmedName) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          }
+          
+          // Validate amountSmall - check empty, null, undefined trước khi parse
+          if (ing.amountSmall === '' || ing.amountSmall === null || ing.amountSmall === undefined) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Vui lòng nhập số lượng size nhỏ hợp lệ`);
+          }
+          
           const amountSmall = typeof ing.amountSmall === 'number' 
             ? ing.amountSmall 
             : parseFloat(ing.amountSmall);
           
-          if (isNaN(amountSmall) || !isFinite(amountSmall) || amountSmall <= 0) {
+          if (isNaN(amountSmall) || !isFinite(amountSmall)) {
             throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size nhỏ không hợp lệ`);
           }
           
-          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
-          if (!trimmedName) {
-            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          if (amountSmall <= 0) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size nhỏ phải lớn hơn 0`);
           }
           
           return {
@@ -194,17 +247,27 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
       const largeRecipe = {
         size: 'large',
         ingredients: ingredients.map((ing, index) => {
+          // Validate name trước
+          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
+          if (!trimmedName) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          }
+          
+          // Validate amountLarge - check empty, null, undefined trước khi parse
+          if (ing.amountLarge === '' || ing.amountLarge === null || ing.amountLarge === undefined) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Vui lòng nhập số lượng size lớn hợp lệ`);
+          }
+          
           const amountLarge = typeof ing.amountLarge === 'number' 
             ? ing.amountLarge 
             : parseFloat(ing.amountLarge);
           
-          if (isNaN(amountLarge) || !isFinite(amountLarge) || amountLarge <= 0) {
+          if (isNaN(amountLarge) || !isFinite(amountLarge)) {
             throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size lớn không hợp lệ`);
           }
           
-          const trimmedName = typeof ing.name === 'string' ? ing.name.trim() : '';
-          if (!trimmedName) {
-            throw new Error(`Nguyên liệu thứ ${index + 1}: Tên không được để trống`);
+          if (amountLarge <= 0) {
+            throw new Error(`Nguyên liệu thứ ${index + 1}: Số lượng size lớn phải lớn hơn 0`);
           }
           
           return {
@@ -224,20 +287,50 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
       // Kiểm tra kết quả từng recipe
       const errors = [];
       
+      // Helper function để extract error message chi tiết
+      const extractErrorMessage = (error, defaultMsg) => {
+        // Ưu tiên message từ backend response
+        if (error?.response?.data?.message) {
+          return error.response.data.message;
+        }
+        
+        // Kiểm tra errors array từ backend (validation errors)
+        if (error?.response?.data?.errors && Array.isArray(error.response.data.errors)) {
+          return error.response.data.errors.join(', ');
+        }
+        
+        // Kiểm tra error message trực tiếp
+        if (error?.message) {
+          return error.message;
+        }
+        
+        // Kiểm tra status text
+        if (error?.response?.statusText) {
+          return `${error.response.status} ${error.response.statusText}`;
+        }
+        
+        // Fallback
+        return defaultMsg;
+      };
+      
       if (smallResult.status === 'rejected') {
-        const errorMsg = smallResult.reason?.response?.data?.message 
-          || smallResult.reason?.message 
-          || 'Lỗi khi lưu công thức size nhỏ';
+        const errorMsg = extractErrorMessage(smallResult.reason, 'Lỗi khi lưu công thức size nhỏ');
         errors.push(`Size nhỏ: ${errorMsg}`);
-        console.error('Error saving small recipe:', smallResult.reason);
+        console.error('Error saving small recipe:', {
+          error: smallResult.reason,
+          response: smallResult.reason?.response?.data,
+          message: errorMsg,
+        });
       }
       
       if (largeResult.status === 'rejected') {
-        const errorMsg = largeResult.reason?.response?.data?.message 
-          || largeResult.reason?.message 
-          || 'Lỗi khi lưu công thức size lớn';
+        const errorMsg = extractErrorMessage(largeResult.reason, 'Lỗi khi lưu công thức size lớn');
         errors.push(`Size lớn: ${errorMsg}`);
-        console.error('Error saving large recipe:', largeResult.reason);
+        console.error('Error saving large recipe:', {
+          error: largeResult.reason,
+          response: largeResult.reason?.response?.data,
+          message: errorMsg,
+        });
       }
       
       // Nếu có lỗi, hiển thị và không đóng form
