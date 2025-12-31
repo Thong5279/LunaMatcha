@@ -77,16 +77,27 @@ const createOrUpdateRecipe = async (req, res) => {
     const { productId } = req.params;
     const { size, ingredients } = req.body;
     
+    // Log request để debug
+    console.log('createOrUpdateRecipe called:', {
+      productId,
+      size,
+      ingredientsCount: ingredients?.length,
+      ingredients: ingredients,
+    });
+    
     // Validate productId
     if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+      console.error('Invalid productId:', productId);
       return res.status(400).json({ message: 'ProductId không hợp lệ' });
     }
     
     if (!size || !['small', 'large'].includes(size)) {
+      console.error('Invalid size:', size);
       return res.status(400).json({ message: 'Size phải là small hoặc large' });
     }
     
     if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
+      console.error('Invalid ingredients:', ingredients);
       return res.status(400).json({ message: 'Vui lòng cung cấp ít nhất một nguyên liệu' });
     }
     
@@ -144,36 +155,58 @@ const createOrUpdateRecipe = async (req, res) => {
     // Convert productId sang ObjectId để đảm bảo query đúng
     const productObjectId = new mongoose.Types.ObjectId(productId);
     
+    console.log('Attempting to find/update recipe:', {
+      productId: productObjectId,
+      size,
+      ingredientsCount: ingredients.length,
+    });
+    
     // Tìm công thức hiện có hoặc tạo mới
     let recipe = await Recipe.findOne({ productId: productObjectId, size });
     
     if (recipe) {
       // Cập nhật
+      console.log('Updating existing recipe:', recipe._id);
       recipe.ingredients = ingredients;
       await recipe.save();
-      res.json(recipe);
+      console.log('Recipe updated successfully');
+      return res.json(recipe);
     } else {
       // Tạo mới
+      console.log('Creating new recipe');
       recipe = new Recipe({
         productId: productObjectId,
         size,
         ingredients,
       });
       await recipe.save();
-      res.status(201).json(recipe);
+      console.log('Recipe created successfully:', recipe._id);
+      return res.status(201).json(recipe);
     }
   } catch (error) {
-    // Log chi tiết lỗi để debug
+    // Log chi tiết lỗi để debug - đảm bảo luôn log đầy đủ
     console.error('Error in createOrUpdateRecipe:', {
-      productId,
-      size,
-      error: error.message,
-      stack: error.stack,
-      code: error.code,
+      productId: req.params?.productId,
+      size: req.body?.size,
+      ingredients: req.body?.ingredients,
+      errorName: error.name,
+      errorMessage: error.message,
+      errorCode: error.code,
+      errorStack: error.stack,
+      errorKeys: error.keyPattern,
+      errorKeysValue: error.keyValue,
     });
     
+    // Đảm bảo luôn trả về JSON, không phải HTML
+    res.setHeader('Content-Type', 'application/json');
+    
+    // Xử lý duplicate key error (unique constraint)
     if (error.code === 11000) {
-      return res.status(400).json({ message: 'Sản phẩm này đã có công thức cho size này' });
+      const duplicateField = error.keyPattern ? Object.keys(error.keyPattern)[0] : 'unknown';
+      return res.status(400).json({ 
+        message: `Sản phẩm này đã có công thức cho size ${req.body?.size || 'này'}`,
+        duplicateField 
+      });
     }
     
     // Xử lý lỗi validation của mongoose
@@ -187,10 +220,17 @@ const createOrUpdateRecipe = async (req, res) => {
     
     // Xử lý lỗi CastError (ObjectId không hợp lệ)
     if (error.name === 'CastError') {
-      return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+      return res.status(400).json({ 
+        message: 'Dữ liệu không hợp lệ',
+        details: error.message 
+      });
     }
     
-    res.status(500).json({ message: 'Có lỗi xảy ra khi lưu công thức. Vui lòng thử lại sau.' });
+    // Xử lý lỗi khác - luôn trả về JSON
+    return res.status(500).json({ 
+      message: 'Có lỗi xảy ra khi lưu công thức. Vui lòng thử lại sau.',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 

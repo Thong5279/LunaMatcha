@@ -215,18 +215,48 @@ const RecipeForm = ({ productId, productName, onClose, onSave }) => {
         }),
       };
 
-      // Lưu cả 2 recipes cùng lúc
-      await Promise.all([
+      // Lưu cả 2 recipes cùng lúc - dùng allSettled để xử lý từng kết quả riêng biệt
+      const [smallResult, largeResult] = await Promise.allSettled([
         recipeService.createOrUpdate(productId, smallRecipe),
         recipeService.createOrUpdate(productId, largeRecipe),
       ]);
       
+      // Kiểm tra kết quả từng recipe
+      const errors = [];
+      
+      if (smallResult.status === 'rejected') {
+        const errorMsg = smallResult.reason?.response?.data?.message 
+          || smallResult.reason?.message 
+          || 'Lỗi khi lưu công thức size nhỏ';
+        errors.push(`Size nhỏ: ${errorMsg}`);
+        console.error('Error saving small recipe:', smallResult.reason);
+      }
+      
+      if (largeResult.status === 'rejected') {
+        const errorMsg = largeResult.reason?.response?.data?.message 
+          || largeResult.reason?.message 
+          || 'Lỗi khi lưu công thức size lớn';
+        errors.push(`Size lớn: ${errorMsg}`);
+        console.error('Error saving large recipe:', largeResult.reason);
+      }
+      
+      // Nếu có lỗi, hiển thị và không đóng form
+      if (errors.length > 0) {
+        const errorMessage = errors.length === 2 
+          ? `Lỗi khi lưu cả 2 size:\n${errors.join('\n')}`
+          : errors[0];
+        showToast.error(errorMessage);
+        return; // Không đóng form để user có thể sửa
+      }
+      
+      // Nếu cả 2 đều thành công
       showToast.success('Đã lưu công thức cho cả 2 size thành công');
       if (onSave) {
         onSave();
       }
       onClose();
     } catch (error) {
+      // Catch các lỗi khác (validation, network, etc.)
       const errorMessage = error.response?.data?.message 
         || error.message 
         || 'Có lỗi xảy ra khi lưu công thức';
