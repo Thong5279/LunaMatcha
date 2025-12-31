@@ -18,23 +18,46 @@ const RecipeViewer = ({ cartItems = [], productMap = {} }) => {
   const fetchRecipes = async () => {
     try {
       setLoading(true);
-      const recipePromises = cartItems.map(async (item) => {
-        try {
-          const response = await recipeService.getByProductIdAndSize(item.productId, item.size);
-          return {
-            ...response.data,
-            cartItemId: `${item.productId}-${item.size}`, // Unique ID cho mỗi item trong cart
-            productName: item.productName,
-            size: item.size,
-          };
-        } catch (error) {
-          // Không có công thức cho size này
+      // Lấy unique productIds để tránh gọi API trùng lặp
+      const uniqueProductIds = [...new Set(cartItems.map(item => item.productId))];
+      
+      // Fetch recipes cho tất cả products
+      const recipeMap = new Map();
+      await Promise.all(
+        uniqueProductIds.map(async (productId) => {
+          try {
+            const response = await recipeService.getByProductId(productId);
+            if (response?.data) {
+              recipeMap.set(productId, response.data);
+            }
+          } catch (error) {
+            // Không có công thức cho product này
+            console.warn(`Không tìm thấy công thức cho productId: ${productId}`);
+          }
+        })
+      );
+      
+      // Map recipes cho từng cart item
+      const results = cartItems.map((item) => {
+        const recipe = recipeMap.get(item.productId);
+        if (!recipe) {
           return null;
         }
+        
+        // Lấy ingredients theo size
+        const ingredients = item.size === 'small' 
+          ? recipe.ingredientsSmall || []
+          : recipe.ingredientsLarge || [];
+        
+        return {
+          ingredients,
+          cartItemId: `${item.productId}-${item.size}`, // Unique ID cho mỗi item trong cart
+          productName: item.productName,
+          size: item.size,
+        };
       });
       
-      const results = await Promise.all(recipePromises);
-      setRecipes(results.filter(r => r !== null));
+      setRecipes(results.filter(r => r !== null && r.ingredients.length > 0));
     } catch (error) {
       console.error('Lỗi khi tải công thức:', error);
       setRecipes([]);

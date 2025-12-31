@@ -24,20 +24,26 @@ const recipeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
       required: true,
+      unique: true, // Mỗi product chỉ có 1 recipe document
     },
-    size: {
-      type: String,
-      enum: ['small', 'large'],
-      required: true,
-    },
-    ingredients: {
+    ingredientsSmall: {
       type: [ingredientSchema],
       required: true,
       validate: {
         validator: function (v) {
           return v && v.length > 0;
         },
-        message: 'Công thức phải có ít nhất một nguyên liệu',
+        message: 'Công thức size nhỏ phải có ít nhất một nguyên liệu',
+      },
+    },
+    ingredientsLarge: {
+      type: [ingredientSchema],
+      required: true,
+      validate: {
+        validator: function (v) {
+          return v && v.length > 0;
+        },
+        message: 'Công thức size lớn phải có ít nhất một nguyên liệu',
       },
     },
   },
@@ -46,8 +52,8 @@ const recipeSchema = new mongoose.Schema(
   }
 );
 
-// Compound unique index để mỗi sản phẩm chỉ có 1 công thức cho mỗi size
-recipeSchema.index({ productId: 1, size: 1 }, { unique: true });
+// Unique index trên productId - mỗi product chỉ có 1 recipe document
+recipeSchema.index({ productId: 1 }, { unique: true });
 
 module.exports = mongoose.model('Recipe', recipeSchema);
 
