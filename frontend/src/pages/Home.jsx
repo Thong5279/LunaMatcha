@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import ProductList from '../components/ProductList';
-import SellMode from '../components/SellMode';
-import ProductForm from '../components/ProductForm';
-import ToppingManager from '../components/ToppingManager';
-import CelebrationModal from '../components/CelebrationModal';
+import LoadingSkeleton from '../components/LoadingSkeleton';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
+
+// Lazy load các components không cần thiết ngay
+const SellMode = lazy(() => import('../components/SellMode'));
+const ProductForm = lazy(() => import('../components/ProductForm'));
+const ToppingManager = lazy(() => import('../components/ToppingManager'));
+const CelebrationModal = lazy(() => import('../components/CelebrationModal'));
 
 const Home = () => {
   const [isSellMode, setIsSellMode] = useState(false);
@@ -45,9 +48,12 @@ const Home = () => {
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img 
-              src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766524914/571ddf38b714384a6105_we7asp.jpg" 
+              src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,q_auto,f_auto/v1766524914/571ddf38b714384a6105_we7asp.jpg" 
               alt="Luna Matcha" 
               className="w-10 h-10 rounded-full object-cover"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
             />
             <h1 className="text-xl font-bold text-accent-dark">Luna Matcha</h1>
           </div>
@@ -58,9 +64,12 @@ const Home = () => {
               aria-label="Xem celebration"
             >
               <img
-                src="https://res.cloudinary.com/dlstlvjaq/image/upload/v1766651725/psybirdb1oom_qiqb5y.gif"
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_48,h_48,c_fill,q_auto,f_auto/v1766651725/psybirdb1oom_qiqb5y.gif"
                 alt="Mascot"
                 className="w-12 h-12 object-contain"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </button>
           </div>
@@ -101,27 +110,35 @@ const Home = () => {
 
       {/* Content */}
       {isSellMode ? (
-        <SellMode onComplete={() => setIsSellMode(false)} />
+        <Suspense fallback={<LoadingSkeleton type="page" />}>
+          <SellMode onComplete={() => setIsSellMode(false)} />
+        </Suspense>
       ) : (
         <ProductList />
       )}
 
       {/* Product Form Modal */}
       {showProductForm && (
-        <ProductForm onClose={() => setShowProductForm(false)} />
+        <Suspense fallback={<LoadingSkeleton type="modal" />}>
+          <ProductForm onClose={() => setShowProductForm(false)} />
+        </Suspense>
       )}
 
       {/* Topping Manager Modal */}
       {showToppingManager && (
-        <ToppingManager onClose={() => setShowToppingManager(false)} />
+        <Suspense fallback={<LoadingSkeleton type="modal" />}>
+          <ToppingManager onClose={() => setShowToppingManager(false)} />
+        </Suspense>
       )}
 
       {/* Celebration Modal */}
       {showCelebration && todayRevenue >= 200000 && (
-        <CelebrationModal
-          revenue={todayRevenue}
-          onClose={() => setShowCelebration(false)}
-        />
+        <Suspense fallback={null}>
+          <CelebrationModal
+            revenue={todayRevenue}
+            onClose={() => setShowCelebration(false)}
+          />
+        </Suspense>
       )}
 
     </div>

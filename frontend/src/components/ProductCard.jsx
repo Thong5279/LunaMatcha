@@ -18,6 +18,7 @@ const ProductCard = memo(({ product, onSelect, isSelectMode = false, isSelected 
           className="w-full h-full object-cover"
           loading="lazy"
           decoding="async"
+          fetchPriority="low"
         />
       </div>
       <div className="p-3 bg-white">
