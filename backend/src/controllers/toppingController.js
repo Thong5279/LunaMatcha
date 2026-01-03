@@ -3,7 +3,12 @@ const Topping = require('../models/Topping');
 // Lấy danh sách topping
 const getToppings = async (req, res) => {
   try {
-    const toppings = await Topping.find().sort({ createdAt: -1 });
+    // Field projection: chỉ select fields cần thiết, loại bỏ __v
+    // lean() để trả về plain JavaScript objects thay vì Mongoose documents (nhanh hơn)
+    const toppings = await Topping.find()
+      .select('name price createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(toppings);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -81,6 +86,8 @@ module.exports = {
   updateTopping,
   deleteTopping,
 };
+
+
 
 
 

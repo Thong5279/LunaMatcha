@@ -1,37 +1,24 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import ProductList from './ProductList';
 import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
 import OrderReviewModal from './OrderReviewModal';
 import RecipeViewer from './RecipeViewer';
 import { HiTrash } from 'react-icons/hi2';
-import { toppingService } from '../services/toppingService';
+import { useToppings } from '../contexts/ToppingContext';
 import { orderService } from '../services/orderService';
 import showToast from '../utils/toast';
 import { formatCurrencyWithUnit } from '../utils/formatCurrency';
 
 const SellMode = ({ onComplete }) => {
   const [cart, setCart] = useState([]);
-  const [toppings, setToppings] = useState([]);
+  const { toppings } = useToppings(); // Sử dụng toppings từ context thay vì fetch lại
   const [showToppingSelector, setShowToppingSelector] = useState(false);
   const [showOrderReview, setShowOrderReview] = useState(false);
   const [showChangeCalculator, setShowChangeCalculator] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showRecipe, setShowRecipe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    fetchToppings();
-  }, []);
-
-  const fetchToppings = async () => {
-    try {
-      const response = await toppingService.getAll();
-      setToppings(response.data);
-    } catch (error) {
-      console.error('Lỗi khi tải danh sách topping:', error);
-    }
-  };
 
   const handleProductSelect = useCallback((product) => {
     setSelectedProduct(product);

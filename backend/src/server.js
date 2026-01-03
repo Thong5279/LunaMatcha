@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const dotenv = require('dotenv');
 const connectDB = require('./config/database');
 
@@ -12,6 +13,8 @@ connectDB();
 const app = express();
 
 // Middleware
+// Response compression - giảm response size 60-80%
+app.use(compression());
 // CORS configuration - Đơn giản hóa để fix lỗi production
 // Cho phép tất cả origins để tránh lỗi CORS
 app.use((req, res, next) => {

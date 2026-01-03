@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { ToppingProvider } from './contexts/ToppingContext';
 import Home from './pages/Home';
 import BottomNav from './components/BottomNav';
 import LoadingSkeleton from './components/LoadingSkeleton';
@@ -12,8 +13,9 @@ const DailyShift = lazy(() => import('./pages/DailyShift'));
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-primary-light">
+    <ToppingProvider>
+      <Router>
+        <div className="min-h-screen bg-primary-light">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route 
@@ -70,7 +72,8 @@ function App() {
           }}
         />
       </div>
-    </Router>
+      </Router>
+    </ToppingProvider>
   );
 }
 

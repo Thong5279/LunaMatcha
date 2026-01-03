@@ -19,7 +19,13 @@ const toppingSchema = new mongoose.Schema(
   }
 );
 
+// Indexes để tối ưu query performance
+toppingSchema.index({ createdAt: -1 }); // Tối ưu sort by createdAt descending
+// name đã có unique index, không cần thêm
+
 module.exports = mongoose.model('Topping', toppingSchema);
+
+
 
 
 

@@ -4,7 +4,12 @@ const cloudinary = require('../config/cloudinary');
 // Lấy danh sách sản phẩm
 const getProducts = async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    // Field projection: chỉ select fields cần thiết, loại bỏ __v
+    // lean() để trả về plain JavaScript objects thay vì Mongoose documents (nhanh hơn)
+    const products = await Product.find()
+      .select('name priceSmall priceLarge image description createdAt updatedAt')
+      .sort({ createdAt: -1 })
+      .lean();
     res.json(products);
   } catch (error) {
     res.status(500).json({ message: error.message });

@@ -35,5 +35,9 @@ const productSchema = new mongoose.Schema(
   }
 );
 
+// Indexes để tối ưu query performance
+productSchema.index({ createdAt: -1 }); // Tối ưu sort by createdAt descending
+productSchema.index({ name: 1 }); // Tối ưu search by name (nếu cần)
+
 module.exports = mongoose.model('Product', productSchema);
 

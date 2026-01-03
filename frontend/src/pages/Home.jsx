@@ -1,7 +1,9 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import ProductList from '../components/ProductList';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { dailyShiftService } from '../services/dailyShiftService';
+import { productService } from '../services/productService';
+import { useToppings } from '../contexts/ToppingContext';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
 
@@ -17,6 +19,25 @@ const Home = () => {
   const [showToppingManager, setShowToppingManager] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
+  const { refreshToppings } = useToppings(); // Để refresh toppings khi cần
+
+  // Prefetch products và toppings song song khi Home page load
+  useEffect(() => {
+    const prefetchData = async () => {
+      try {
+        // Gọi song song để tối ưu thời gian load
+        await Promise.all([
+          productService.getAll(), // Prefetch products (có thể đã có cache)
+          refreshToppings(), // Prefetch toppings (có thể đã có cache)
+        ]);
+      } catch (error) {
+        // Silent fail - không hiển thị error vì đây chỉ là prefetch
+        console.warn('Prefetch data failed:', error);
+      }
+    };
+
+    prefetchData();
+  }, [refreshToppings]);
 
   // Xử lý khi bấm vào linh vật
   const handleMascotClick = async () => {
