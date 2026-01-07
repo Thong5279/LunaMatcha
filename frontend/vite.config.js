@@ -8,11 +8,12 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: (id) => {
-          // Vendor chunks
+          // Vendor chunks - NHƯNG KHÔNG SPLIT REACT
           if (id.includes('node_modules')) {
-            // React core
+            // KHÔNG split React - để React luôn trong entry chunk
+            // React hooks yêu cầu cùng một instance của React
             if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
-              return 'react-vendor';
+              return undefined; // Không split, giữ trong entry chunk
             }
             // Chart library
             if (id.includes('recharts')) {
@@ -56,9 +57,15 @@ export default defineConfig({
     },
     chunkSizeWarningLimit: 1000,
     minify: 'esbuild', // Use esbuild for faster builds
-    // Enable tree-shaking
+    // Enable tree-shaking - nhưng đảm bảo React có side effects
     treeshake: {
-      moduleSideEffects: false,
+      moduleSideEffects: (id) => {
+        // Đảm bảo React có side effects để bundle đúng
+        if (id.includes('react') || id.includes('react-dom')) {
+          return true;
+        }
+        return false;
+      },
     },
     // Source maps for production (optional, có thể tắt để giảm size)
     sourcemap: false,
@@ -71,6 +78,8 @@ export default defineConfig({
     include: ['react', 'react-dom', 'react-router-dom', 'axios'],
     // Exclude large dependencies from pre-bundling
     exclude: ['recharts'],
+    // Force re-optimize để đảm bảo React được bundle đúng
+    force: true,
   },
   // Improve build performance
   esbuild: {
