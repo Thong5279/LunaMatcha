@@ -10,6 +10,9 @@ dotenv.config();
 // Connect to database
 connectDB();
 
+// Store server start time for health check uptime calculation
+global.serverStartTime = Date.now();
+
 const app = express();
 
 // Middleware
@@ -47,18 +50,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Import routes
+const healthRoutes = require('./routes/healthRoutes');
+
 // Routes
+// Health check route - placed FIRST for fast response and keep-alive services
+app.use('/api/health', healthRoutes);
 app.use('/api/products', require('./routes/productRoutes'));
 app.use('/api/toppings', require('./routes/toppingRoutes'));
 app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/shifts', require('./routes/dailyShiftRoutes'));
 app.use('/api/recipes', require('./routes/recipeRoutes'));
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ message: 'Server is running' });
-});
 
 const PORT = process.env.PORT || 5005;
 
