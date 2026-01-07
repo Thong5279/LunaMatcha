@@ -3,13 +3,13 @@ import { getCache, setCache, isCacheStale, clearCachePattern } from '../utils/ca
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5005',
-  timeout: 60000, // 60 giây timeout (đủ cho server wake up)
+  timeout: 15000, // 15 giây timeout (đủ cho server wake up + query, fail nhanh hơn)
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Request interceptor - Implement stale-while-revalidate caching
+// Request interceptor - Đơn giản hóa cache (loại bỏ stale-while-revalidate)
 api.interceptors.request.use(
   async (config) => {
     // Chỉ cache GET requests
@@ -17,22 +17,15 @@ api.interceptors.request.use(
       const url = config.url;
       const params = config.params || {};
       
-      // Kiểm tra cache
+      // Kiểm tra cache - đơn giản
       const cachedData = getCache(url, params);
       
-      if (cachedData) {
-        // Có cache, đánh dấu để response interceptor trả về cached data ngay
+      if (cachedData && !isCacheStale(url, params)) {
+        // Có cache và chưa stale, trả về ngay
         config._fromCache = true;
         config._cachedData = cachedData;
-        
-        // Nếu cache đã stale, fetch fresh data ở background
-        if (isCacheStale(url, params)) {
-          // Fetch fresh data ở background (không block)
-          fetchFreshData(url, params, config).catch(err => {
-            console.warn('Background fetch failed:', err);
-          });
-        }
       }
+      // Không fetch background - đơn giản hơn, tránh race condition
     }
     
     // Clear cache khi có mutations
@@ -61,28 +54,6 @@ api.interceptors.request.use(
     return Promise.reject(error);
   }
 );
-
-// Helper function để fetch fresh data ở background
-const fetchFreshData = async (url, params, originalConfig) => {
-  try {
-    // Tạo config mới cho background fetch
-    const bgConfig = {
-      ...originalConfig,
-      _skipCache: true, // Không cache lần này (sẽ cache ở response interceptor)
-      _backgroundFetch: true, // Đánh dấu là background fetch
-    };
-    
-    const response = await axios(bgConfig);
-    
-    // Cache fresh data
-    setCache(url, response.data, params);
-    
-    return response;
-  } catch (error) {
-    // Background fetch failed, giữ nguyên cache
-    return null;
-  }
-};
 
 // Response interceptor - Cache responses và retry logic
 api.interceptors.response.use(
@@ -125,23 +96,21 @@ api.interceptors.response.use(
       });
     }
     
-    // Retry logic với exponential backoff
+    // Retry logic đơn giản hóa - chỉ retry 1 lần với fixed delay
     const shouldRetry = 
-      (error.code === 'ECONNABORTED' || // Timeout
-       error.message === 'Network Error' || // Network error
-       !error.response) && // No response (server có thể đang wake up)
+      (!error.response) && // Chỉ retry khi không có response (server wake up)
       !config._retry && // Chưa retry
       !config._backgroundFetch && // Không retry background fetch
-      (config._retryCount || 0) < 3; // Tối đa 3 lần retry
+      (config._retryCount || 0) < 1; // Chỉ retry 1 lần
     
     if (shouldRetry) {
       config._retry = true;
       config._retryCount = (config._retryCount || 0) + 1;
       
-      // Exponential backoff: 2s, 4s, 8s
-      const delay = Math.pow(2, config._retryCount) * 1000;
+      // Fixed delay 2 giây thay vì exponential backoff
+      const delay = 2000;
       
-      console.log(`API retry ${config._retryCount}/3 after ${delay}ms for ${config.url}`);
+      console.log(`API retry ${config._retryCount}/1 after ${delay}ms for ${config.url}`);
       
       // Đợi trước khi retry
       await new Promise(resolve => setTimeout(resolve, delay));
