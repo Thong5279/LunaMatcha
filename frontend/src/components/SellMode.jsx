@@ -34,7 +34,7 @@ const SellMode = ({ onComplete }) => {
       quantity: parseInt(quantity),
       price: price,
       iceType: iceType || 'common',
-      toppings: selectedToppings.map((topping) => ({
+      toppings: (selectedToppings || []).map((topping) => ({
         toppingId: topping._id,
         toppingName: topping.name,
         price: topping.price,
@@ -57,7 +57,7 @@ const SellMode = ({ onComplete }) => {
   const totalAmount = useMemo(() => {
     return cart.reduce((total, item) => {
       const itemTotal = item.price * item.quantity;
-      const toppingTotal = item.toppings.reduce(
+      const toppingTotal = (item.toppings || []).reduce(
         (sum, topping) => sum + topping.price * (topping.quantity || 1) * item.quantity,
         0
       );
@@ -88,7 +88,7 @@ const SellMode = ({ onComplete }) => {
   const cartItems = useMemo(() => {
     return cart.map((item, index) => {
       const itemTotal = item.price * item.quantity;
-      const toppingTotal = item.toppings.reduce(
+      const toppingTotal = (item.toppings || []).reduce(
         (sum, t) => sum + t.price * (t.quantity || 1) * item.quantity,
         0
       );
@@ -176,7 +176,7 @@ const SellMode = ({ onComplete }) => {
                        item.iceType === 'separate' ? 'Riêng' : 'Không đá'} |{' '}
                       <span className="font-medium">SL:</span> {item.quantity} x {formatCurrencyWithUnit(item.price)}
                     </p>
-                    {item.toppings.length > 0 && (
+                    {(item.toppings && item.toppings.length > 0) && (
                       <p className="text-xs text-gray-600 mb-0.5">
                         <span className="font-medium">Topping:</span> {item.toppings.map((t) => {
                           const qty = t.quantity || 1;

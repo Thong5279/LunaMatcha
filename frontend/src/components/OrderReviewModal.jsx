@@ -29,7 +29,7 @@ const OrderReviewModal = ({ isOpen, onClose, onConfirm, cart, totalAmount }) => 
             <h3 className="text-base font-semibold text-gray-800 mb-2">Sản phẩm đã chọn</h3>
             {cart.map((item, index) => {
               const itemTotal = item.price * item.quantity;
-              const toppingTotal = item.toppings.reduce(
+              const toppingTotal = (item.toppings || []).reduce(
                 (sum, topping) => sum + topping.price * (topping.quantity || 1) * item.quantity,
                 0
               );
@@ -61,7 +61,7 @@ const OrderReviewModal = ({ isOpen, onClose, onConfirm, cart, totalAmount }) => 
                             ? 'Riêng'
                             : 'Không đá'}
                         </p>
-                        {item.toppings.length > 0 && (
+                        {(item.toppings && item.toppings.length > 0) && (
                           <p className="text-xs text-gray-700">
                             <span className="font-medium">Topping:</span>{' '}
                             {item.toppings.map((t) => {
@@ -69,7 +69,7 @@ const OrderReviewModal = ({ isOpen, onClose, onConfirm, cart, totalAmount }) => 
                               return qty > 1 ? `${t.toppingName} x${qty}` : t.toppingName;
                             }).join(', ')} (
                             {formatCurrency(
-                              item.toppings.reduce(
+                              (item.toppings || []).reduce(
                                 (sum, t) => sum + t.price * (t.quantity || 1) * item.quantity,
                                 0
                               )
