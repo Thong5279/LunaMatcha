@@ -41,12 +41,19 @@ const Home = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Tính gradient color dựa trên doanh thu
+  // Tính gradient color dựa trên doanh thu - sử dụng các sắc thái xanh lá phù hợp với màu chủ đạo
   const getGradientColor = () => {
-    if (todayRevenue < 200000) return 'linear-gradient(135deg, #DEE9CB 0%, #C8D9B5 100%)';
-    if (todayRevenue < 500000) return 'linear-gradient(135deg, #FFE66D 0%, #FFD93D 100%)';
-    if (todayRevenue < 800000) return 'linear-gradient(135deg, #FFA07A 0%, #FF8C69 100%)';
-    return 'linear-gradient(135deg, #FF6B6B 0%, #FF5252 100%)';
+    // Sử dụng các sắc thái xanh lá từ màu chủ đạo
+    if (todayRevenue < 200000) {
+      return 'linear-gradient(135deg, #DEE9CB 0%, #C8D9B5 100%)'; // Primary → Primary-dark
+    }
+    if (todayRevenue < 500000) {
+      return 'linear-gradient(135deg, #C8D9B5 0%, #A8C090 100%)'; // Primary-dark → Secondary
+    }
+    if (todayRevenue < 800000) {
+      return 'linear-gradient(135deg, #A8C090 0%, #98B080 100%)'; // Secondary → Secondary-dark
+    }
+    return 'linear-gradient(135deg, #98B080 0%, #7A9A6E 100%)'; // Secondary-dark → Accent
   };
 
   // Xử lý khi bấm vào linh vật
