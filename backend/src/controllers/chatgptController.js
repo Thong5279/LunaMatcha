@@ -116,8 +116,18 @@ Hãy cung cấp phân tích chi tiết với các phần sau:
 
 // Analyze business data using ChatGPT
 const analyzeBusinessData = async (req, res) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:118',message:'analyzeBusinessData entry',data:{period:req.body?.period,analyzeAll:req.body?.analyzeAll,hasData:!!req.body?.data,apiKeyExists:!!OPENAI_API_KEY},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
   try {
     const { data, period, analyzeAll } = req.body;
+
+    if (!OPENAI_API_KEY) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:125',message:'API key missing',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return res.status(500).json({ message: 'OpenAI API key chưa được cấu hình. Vui lòng liên hệ quản trị viên.' });
+    }
 
     if (!data) {
       return res.status(400).json({ message: 'Dữ liệu phân tích không được để trống' });
@@ -128,6 +138,10 @@ const analyzeBusinessData = async (req, res) => {
 
     console.log('[ChatGPT] Sending analysis request...');
     console.log('[ChatGPT] Period:', period, 'AnalyzeAll:', analyzeAll);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:135',message:'Before OpenAI API call',data:{period,analyzeAll,promptLength:prompt.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
 
     // Call OpenAI API
     const response = await axios.post(
@@ -159,20 +173,39 @@ const analyzeBusinessData = async (req, res) => {
     const analysis = response.data.choices[0]?.message?.content;
 
     if (!analysis) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:161',message:'No analysis in response',data:{responseKeys:Object.keys(response.data||{})},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       return res.status(500).json({ message: 'Không nhận được phản hồi từ ChatGPT' });
     }
 
     console.log('[ChatGPT] Analysis received successfully');
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:166',message:'Analysis success',data:{analysisLength:analysis.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     res.json({ analysis });
   } catch (error) {
     console.error('[ChatGPT] Error:', error.response?.data || error.message);
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:170',message:'Error caught',data:{status:error.response?.status,errorType:error.response?.data?.error?.type,errorCode:error.response?.data?.error?.code,errorMessage:error.response?.data?.error?.message,hasQuota:error.response?.data?.error?.type==='insufficient_quota'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
     
     // Handle specific OpenAI API errors
     if (error.response?.status === 401) {
       return res.status(500).json({ message: 'Lỗi xác thực API. Vui lòng kiểm tra API key.' });
     }
     if (error.response?.status === 429) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:176',message:'Rate limit 429',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       return res.status(429).json({ message: 'API đang quá tải. Vui lòng thử lại sau vài phút.' });
+    }
+    if (error.response?.data?.error?.type === 'insufficient_quota') {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:180',message:'Insufficient quota error',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      return res.status(402).json({ message: 'API key đã hết quota. Vui lòng kiểm tra tài khoản OpenAI và nạp thêm credit.' });
     }
     if (error.response?.status === 500) {
       return res.status(500).json({ message: 'Lỗi server từ OpenAI. Vui lòng thử lại sau.' });

@@ -715,9 +715,18 @@ const Costs = () => {
         const currentYear = new Date().getFullYear();
         const startYear = 2020;
         
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:713',message:'analyzeAll=true - starting fetch',data:{startYear,currentYear,totalYears:currentYear-startYear+1},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
         const allYearsData = [];
+        let requestCount = 0;
         for (let year = startYear; year <= currentYear; year++) {
           try {
+            requestCount++;
+            // #region agent log
+            fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:720',message:'Fetching year data',data:{year,requestCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             const response = await analyticsService.getYearly(year.toString());
             const yearRevenue = response.data?.totalRevenue || 0;
             const yearOrders = response.data?.totalOrders || 0;
@@ -731,8 +740,15 @@ const Costs = () => {
             });
           } catch (error) {
             console.warn(`Error fetching data for year ${year}:`, error);
+            // #region agent log
+            fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:733',message:'Error fetching year',data:{year,errorMessage:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
           }
         }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:737',message:'All years fetched',data:{totalRequests:requestCount,allYearsDataLength:allYearsData.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         
         revenue = allYearsData.reduce((sum, d) => sum + d.revenue, 0);
         totalOrders = allYearsData.reduce((sum, d) => sum + d.orders, 0);
@@ -890,9 +906,16 @@ const Costs = () => {
           }
         }
 
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:893',message:'Starting trends fetch',data:{trendsPeriodsLength:trendsPeriods.length,period},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
+        
         const trends = await Promise.all(
           trendsPeriods.map(async ({ period: p, label }) => {
             try {
+              // #region agent log
+              fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:897',message:'Fetching trend period',data:{period:p,label},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+              // #endregion
               let rev = 0;
               let cost = 0;
               let start, end;
@@ -1002,6 +1025,9 @@ const Costs = () => {
 
   // Run ChatGPT analysis
   const runAnalysis = async () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1004',message:'runAnalysis entry',data:{analysisPeriod,analyzeAll,analysisMonth,analysisYear,analysisQuarter},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
     try {
       setAnalysisLoading(true);
       setAnalysisError(null);
@@ -1018,14 +1044,26 @@ const Costs = () => {
         }
       }
 
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1020',message:'Before fetchAnalysisData',data:{periodValue,analyzeAll},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       const data = await fetchAnalysisData(analysisPeriod, periodValue, analyzeAll);
-
+      
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1023',message:'Before ChatGPT API call',data:{dataKeys:Object.keys(data||{}),trendsLength:data?.trends?.revenue?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       const response = await chatgptService.analyze(data, analysisPeriod, analyzeAll);
       
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1026',message:'ChatGPT API success',data:{hasAnalysis:!!response.data?.analysis},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       setAnalysisResult(response.data?.analysis || 'Không nhận được kết quả phân tích');
       setAnalysisLoading(false);
     } catch (error) {
       console.error('[Analysis] Error:', error);
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1031',message:'runAnalysis error',data:{status:error.response?.status,message:error.response?.data?.message,errorMessage:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      // #endregion
       setAnalysisError(error.response?.data?.message || error.message || 'Lỗi khi phân tích dữ liệu');
       setAnalysisLoading(false);
     }
