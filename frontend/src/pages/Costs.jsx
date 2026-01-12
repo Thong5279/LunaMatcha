@@ -40,6 +40,18 @@ const Costs = () => {
     fetchCosts();
   }, [selectedDate]);
 
+  // Disable body scroll when modal is open
+  useEffect(() => {
+    if (showForm) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showForm]);
+
   const fetchCosts = async () => {
     try {
       setLoading(true);
@@ -339,7 +351,7 @@ const Costs = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-end">
           <div className="bg-white rounded-t-2xl w-full max-h-[90vh] overflow-y-auto animate-slideUp">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">
@@ -357,7 +369,7 @@ const Costs = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 pb-24 space-y-4">
               {/* Date */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Ngày</label>
