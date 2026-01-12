@@ -100,6 +100,11 @@ const createCost = async (req, res) => {
       note: cost.note,
     });
 
+    // Validate date before creating
+    if (isNaN(targetDate.getTime())) {
+      return res.status(400).json({ message: 'Ngày không hợp lệ' });
+    }
+
     await cost.save();
     console.log('Cost created successfully:', cost._id);
     res.status(201).json(cost);
@@ -108,19 +113,45 @@ const createCost = async (req, res) => {
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
+    console.error('Request body:', req.body);
     
+    // Handle Mongoose validation errors
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({ 
         message: 'Lỗi validation', 
-        errors 
+        errors: errors.length > 0 ? errors : [error.message]
       });
     }
-    if (error.name === 'CastError') {
-      return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+    
+    // Handle pre-validate hook errors
+    if (error.message && (
+      error.message.includes('Ghi chú là bắt buộc') ||
+      error.message.includes('Tên loại chi phí là bắt buộc')
+    )) {
+      return res.status(400).json({ 
+        message: error.message 
+      });
     }
+    
+    // Handle CastError (invalid data type)
+    if (error.name === 'CastError') {
+      return res.status(400).json({ 
+        message: 'Dữ liệu không hợp lệ: ' + error.message 
+      });
+    }
+    
+    // Handle duplicate key errors
+    if (error.code === 11000) {
+      return res.status(400).json({ 
+        message: 'Chi phí đã tồn tại' 
+      });
+    }
+    
+    // Generic error
     res.status(500).json({ 
-      message: error.message || 'Lỗi server khi tạo chi phí' 
+      message: error.message || 'Lỗi server khi tạo chi phí',
+      error: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };

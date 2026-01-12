@@ -16,6 +16,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -44,6 +46,7 @@ const Costs = () => {
   const [profitYear, setProfitYear] = useState(() => getCurrentYear());
   const [profitData, setProfitData] = useState(null);
   const [profitLoading, setProfitLoading] = useState(false);
+  const [trendsData, setTrendsData] = useState([]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -70,8 +73,89 @@ const Costs = () => {
   useEffect(() => {
     if (activeTab === 'profit') {
       fetchProfitData();
+      fetchTrendsData();
     }
   }, [profitPeriod, profitMonth, profitQuarter, profitYear, activeTab]);
+
+  const fetchTrendsData = async () => {
+    try {
+      const periods = [];
+      const currentYear = parseInt(profitYear);
+      
+      // Fetch last 6 periods
+      for (let i = 0; i < 6; i++) {
+        if (profitPeriod === 'monthly') {
+          const [year, month] = profitMonth.split('-').map(Number);
+          const targetDate = new Date(year, month - 1 - i, 1);
+          const targetMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
+          periods.push({ period: targetMonth, label: `T${targetDate.getMonth() + 1}/${targetDate.getFullYear()}` });
+        } else if (profitPeriod === 'quarterly') {
+          const targetQuarter = profitQuarter - i;
+          let targetYear = currentYear;
+          let q = targetQuarter;
+          if (q <= 0) {
+            q += 4;
+            targetYear -= 1;
+          }
+          periods.push({ period: `${targetYear}-Q${q}`, label: `Q${q}/${targetYear}` });
+        } else if (profitPeriod === 'yearly') {
+          periods.push({ period: (currentYear - i).toString(), label: (currentYear - i).toString() });
+        }
+      }
+
+      const trends = await Promise.all(
+        periods.map(async ({ period, label }) => {
+          try {
+            let revenue = 0;
+            let costs = 0;
+            let startDate, endDate;
+
+            if (profitPeriod === 'monthly') {
+              const [year, month] = period.split('-').map(Number);
+              startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+              endDate = new Date(year, month, 0, 23, 59, 59, 999);
+              const response = await analyticsService.getMonthly(period);
+              revenue = response.data?.totalRevenue || 0;
+            } else if (profitPeriod === 'quarterly') {
+              const [year, quarterNum] = period.split('-Q').map(Number);
+              const { start, end } = getQuarterStartEnd(year, quarterNum);
+              startDate = start;
+              endDate = end;
+              const response = await analyticsService.getQuarterly(period);
+              revenue = response.data?.totalRevenue || 0;
+            } else if (profitPeriod === 'yearly') {
+              const { start, end } = getYearStartEnd(parseInt(period));
+              startDate = start;
+              endDate = end;
+              const response = await analyticsService.getYearly(period);
+              revenue = response.data?.totalRevenue || 0;
+            }
+
+            const costsResponse = await costService.getAll({
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: endDate.toISOString().split('T')[0],
+            });
+            const periodCosts = costsResponse.data || [];
+            costs = periodCosts.reduce((sum, cost) => sum + cost.amount, 0);
+
+            return {
+              period: label,
+              revenue,
+              costs,
+              profit: revenue - costs,
+            };
+          } catch (error) {
+            console.error(`Error fetching trend data for ${period}:`, error);
+            return { period: label, revenue: 0, costs: 0, profit: 0 };
+          }
+        })
+      );
+
+      setTrendsData(trends.reverse()); // Reverse để hiển thị từ cũ đến mới
+    } catch (error) {
+      console.error('Error fetching trends data:', error);
+    }
+  };
 
   // Disable body scroll when modal is open
   useEffect(() => {
@@ -118,6 +202,153 @@ const Costs = () => {
   const calculateProfitMargin = (revenue, costs) => {
     if (!revenue || revenue === 0) return 0;
     return ((revenue - costs) / revenue) * 100;
+  };
+
+  // AI Analysis helper
+  const generateAIAnalysis = (profitData) => {
+    if (!profitData) return null;
+
+    const { revenue, costs, profit, profitMargin, profitChange, profitChangePercent, previousRevenue, previousCosts } = profitData;
+    const revenueChange = revenue - previousRevenue;
+    const revenueChangePercent = previousRevenue > 0 ? ((revenue - previousRevenue) / previousRevenue) * 100 : 0;
+    const costChange = costs - previousCosts;
+    const costChangePercent = previousCosts > 0 ? ((costs - previousCosts) / previousCosts) * 100 : 0;
+
+    const analysis = {
+      status: profit >= 0 ? 'positive' : 'negative',
+      insights: [],
+      warnings: [],
+      trends: [],
+    };
+
+    // Profit analysis
+    if (profit >= 0) {
+      analysis.insights.push(`Kỳ này có lãi ${formatCurrency(profit)} (${profitMargin.toFixed(1)}% doanh thu)`);
+    } else {
+      analysis.warnings.push(`⚠️ Kỳ này bị lỗ ${formatCurrency(Math.abs(profit))}`);
+    }
+
+    // Revenue trend
+    if (revenueChange > 0) {
+      analysis.trends.push(`📈 Doanh thu tăng ${formatCurrency(revenueChange)} (${revenueChangePercent.toFixed(1)}%) so với kỳ trước`);
+    } else if (revenueChange < 0) {
+      analysis.warnings.push(`⚠️ Doanh thu giảm ${formatCurrency(Math.abs(revenueChange))} (${Math.abs(revenueChangePercent).toFixed(1)}%)`);
+    } else {
+      analysis.trends.push(`➡️ Doanh thu giữ nguyên so với kỳ trước`);
+    }
+
+    // Cost trend
+    if (costChange > 0) {
+      analysis.warnings.push(`⚠️ Chi phí tăng ${formatCurrency(costChange)} (${costChangePercent.toFixed(1)}%)`);
+    } else if (costChange < 0) {
+      analysis.insights.push(`✅ Chi phí giảm ${formatCurrency(Math.abs(costChange))} (${Math.abs(costChangePercent).toFixed(1)}%)`);
+    }
+
+    // Profit change
+    if (profitChange > 0) {
+      analysis.insights.push(`📊 Lãi tăng ${formatCurrency(profitChange)} (${profitChangePercent.toFixed(1)}%) so với kỳ trước`);
+    } else if (profitChange < 0) {
+      analysis.warnings.push(`⚠️ Lãi giảm ${formatCurrency(Math.abs(profitChange))} (${Math.abs(profitChangePercent).toFixed(1)}%)`);
+    }
+
+    // Profit margin analysis
+    if (profitMargin > 30) {
+      analysis.insights.push(`💎 Tỷ lệ lãi rất tốt (${profitMargin.toFixed(1)}%)`);
+    } else if (profitMargin < 10 && profitMargin >= 0) {
+      analysis.warnings.push(`⚠️ Tỷ lệ lãi thấp (${profitMargin.toFixed(1)}%), cần cải thiện`);
+    } else if (profitMargin < 0) {
+      analysis.warnings.push(`🚨 Đang bị lỗ, cần hành động ngay`);
+    }
+
+    return analysis;
+  };
+
+  // Generate recommendations
+  const generateRecommendations = (profitData) => {
+    if (!profitData) return [];
+
+    const { revenue, costs, profit, profitMargin, profitChange, previousRevenue, previousCosts, costsByCategory } = profitData;
+    const revenueChange = revenue - previousRevenue;
+    const costChange = costs - previousCosts;
+    const recommendations = [];
+
+    // Cost reduction recommendations
+    if (costs > revenue * 0.7) {
+      recommendations.push({
+        type: 'cost',
+        priority: 'high',
+        title: 'Giảm chi phí',
+        description: `Chi phí chiếm ${((costs / revenue) * 100).toFixed(1)}% doanh thu. Cần xem xét giảm chi phí để cải thiện lãi.`,
+        actions: [
+          'Xem xét đàm phán lại giá với nhà cung cấp',
+          'Tối ưu hóa quy trình sản xuất để giảm lãng phí',
+          'Kiểm tra và cắt giảm chi phí không cần thiết',
+        ],
+      });
+    }
+
+    // Revenue increase recommendations
+    if (revenueChange < 0) {
+      recommendations.push({
+        type: 'revenue',
+        priority: 'high',
+        title: 'Tăng doanh thu',
+        description: `Doanh thu giảm ${formatCurrency(Math.abs(revenueChange))} so với kỳ trước.`,
+        actions: [
+          'Tăng cường marketing và quảng cáo',
+          'Mở rộng sản phẩm/dịch vụ',
+          'Cải thiện chất lượng để tăng giá trị đơn hàng',
+        ],
+      });
+    }
+
+    // Category-specific recommendations
+    const totalCosts = costsByCategory.material + costsByCategory.ice + costsByCategory.other;
+    if (costsByCategory.material > totalCosts * 0.6) {
+      recommendations.push({
+        type: 'category',
+        priority: 'medium',
+        title: 'Tối ưu chi phí nguyên liệu',
+        description: `Chi phí nguyên liệu chiếm ${((costsByCategory.material / totalCosts) * 100).toFixed(1)}% tổng chi phí.`,
+        actions: [
+          'Tìm nhà cung cấp với giá tốt hơn',
+          'Mua số lượng lớn để được giảm giá',
+          'Kiểm tra chất lượng nguyên liệu để tránh lãng phí',
+        ],
+      });
+    }
+
+    // Profit margin recommendations
+    if (profitMargin < 15 && profitMargin >= 0) {
+      recommendations.push({
+        type: 'margin',
+        priority: 'medium',
+        title: 'Cải thiện tỷ lệ lãi',
+        description: `Tỷ lệ lãi hiện tại ${profitMargin.toFixed(1)}% còn thấp.`,
+        actions: [
+          'Tăng giá bán nếu thị trường cho phép',
+          'Giảm chi phí vận hành',
+          'Tối ưu hóa quy trình để tăng hiệu quả',
+        ],
+      });
+    }
+
+    if (profit < 0) {
+      recommendations.push({
+        type: 'urgent',
+        priority: 'critical',
+        title: 'Hành động khẩn cấp',
+        description: `Đang bị lỗ ${formatCurrency(Math.abs(profit))}. Cần hành động ngay.`,
+        actions: [
+          'Xem xét tăng giá bán',
+          'Giảm chi phí không cần thiết ngay lập tức',
+          'Tăng cường bán hàng để tăng doanh thu',
+          'Xem xét tạm dừng các hoạt động không sinh lời',
+        ],
+      });
+    }
+
+    return recommendations;
   };
 
   const fetchProfitData = async () => {
@@ -665,9 +896,49 @@ const Costs = () => {
                   </div>
                 </div>
 
+                {/* Trends Chart - Line Chart */}
+                {trendsData.length > 0 && (
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <h3 className="font-semibold mb-4">Xu hướng theo thời gian</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                      <LineChart data={trendsData} isAnimationActive={false}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="period" />
+                        <YAxis />
+                        <Tooltip formatter={(value) => formatCurrency(value)} />
+                        <Legend />
+                        <Line
+                          type="monotone"
+                          dataKey="revenue"
+                          stroke="#10b981"
+                          strokeWidth={2}
+                          name="Doanh thu"
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="costs"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          name="Chi phí"
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="profit"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          name="Lãi/Lỗ"
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
                 {/* Bar Chart: Revenue vs Costs vs Profit */}
                 <div className="bg-white rounded-lg p-4 shadow">
-                  <h3 className="font-semibold mb-4">Doanh thu vs Chi phí vs Lãi/Lỗ</h3>
+                  <h3 className="font-semibold mb-4">Doanh thu vs Chi phí vs Lãi/Lỗ (Kỳ này)</h3>
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart
                       data={[
@@ -733,6 +1004,139 @@ const Costs = () => {
                   </div>
                 )}
 
+                {/* AI Analysis Section */}
+                {generateAIAnalysis(profitData) && (() => {
+                  const analysis = generateAIAnalysis(profitData);
+                  return (
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 shadow border border-blue-200">
+                      <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span className="text-2xl">🤖</span>
+                        Phân tích AI
+                      </h3>
+                      <div className="space-y-3">
+                        {analysis.insights.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Nhận định tích cực:</p>
+                            <ul className="space-y-1">
+                              {analysis.insights.map((insight, idx) => (
+                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                                  <span className="text-green-600 mt-0.5">✓</span>
+                                  <span>{insight}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.warnings.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-red-700 mb-2">Cảnh báo:</p>
+                            <ul className="space-y-1">
+                              {analysis.warnings.map((warning, idx) => (
+                                <li key={idx} className="text-sm text-red-700 flex items-start gap-2">
+                                  <span className="text-red-600 mt-0.5">⚠</span>
+                                  <span>{warning}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.trends.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Xu hướng:</p>
+                            <ul className="space-y-1">
+                              {analysis.trends.map((trend, idx) => (
+                                <li key={idx} className="text-sm text-gray-700">{trend}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Breakdown Analysis */}
+                {profitData.costs > 0 && (
+                  <div className="bg-white rounded-lg p-4 shadow">
+                    <h3 className="font-semibold mb-4">Phân tích chi tiết chi phí</h3>
+                    <div className="space-y-3">
+                      {Object.entries(profitData.costsByCategory).map(([category, amount]) => {
+                        if (amount === 0) return null;
+                        const percentage = (amount / profitData.costs) * 100;
+                        return (
+                          <div key={category} className="border border-gray-200 rounded-lg p-3">
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="font-medium text-gray-800">
+                                {categoryLabels[category]}
+                              </span>
+                              <span className="font-bold text-gray-900">
+                                {formatCurrency(amount)}
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-accent h-2 rounded-full"
+                                style={{ width: `${percentage}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {percentage.toFixed(1)}% tổng chi phí
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {generateRecommendations(profitData).length > 0 && (
+                  <div className="bg-white rounded-lg p-4 shadow border-l-4 border-yellow-400">
+                    <h3 className="font-semibold mb-4 text-gray-800 flex items-center gap-2">
+                      <span className="text-2xl">💡</span>
+                      Gợi ý cải thiện
+                    </h3>
+                    <div className="space-y-4">
+                      {generateRecommendations(profitData).map((rec, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-3 rounded-lg border ${
+                            rec.priority === 'critical'
+                              ? 'bg-red-50 border-red-300'
+                              : rec.priority === 'high'
+                              ? 'bg-orange-50 border-orange-300'
+                              : 'bg-blue-50 border-blue-300'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <h4 className="font-semibold text-gray-800">{rec.title}</h4>
+                            <span
+                              className={`text-xs px-2 py-1 rounded ${
+                                rec.priority === 'critical'
+                                  ? 'bg-red-200 text-red-800'
+                                  : rec.priority === 'high'
+                                  ? 'bg-orange-200 text-orange-800'
+                                  : 'bg-blue-200 text-blue-800'
+                              }`}
+                            >
+                              {rec.priority === 'critical' ? 'Khẩn cấp' : rec.priority === 'high' ? 'Cao' : 'Trung bình'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
+                          <ul className="space-y-1">
+                            {rec.actions.map((action, actionIdx) => (
+                              <li key={actionIdx} className="text-sm text-gray-600 flex items-start gap-2">
+                                <span className="text-accent mt-0.5">•</span>
+                                <span>{action}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Comparison with Previous Period */}
                 <div className="bg-white rounded-lg p-4 shadow">
                   <p className="text-sm text-gray-600 mb-2">
@@ -755,10 +1159,21 @@ const Costs = () => {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-gray-500 space-y-1">
-                      <p>Kỳ trước - Doanh thu: {formatCurrency(profitData.previousRevenue)}</p>
-                      <p>Kỳ trước - Chi phí: {formatCurrency(profitData.previousCosts)}</p>
-                      <p>Kỳ trước - Lãi/Lỗ: {formatCurrency(profitData.previousProfit)}</p>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-gray-50 p-2 rounded">
+                        <p className="text-gray-500">Kỳ trước</p>
+                        <p className="font-semibold text-gray-800">Doanh thu: {formatCurrency(profitData.previousRevenue)}</p>
+                        <p className="font-semibold text-gray-800">Chi phí: {formatCurrency(profitData.previousCosts)}</p>
+                        <p className="font-semibold text-gray-800">Lãi/Lỗ: {formatCurrency(profitData.previousProfit)}</p>
+                      </div>
+                      <div className="bg-gray-50 p-2 rounded">
+                        <p className="text-gray-500">Kỳ này</p>
+                        <p className="font-semibold text-green-600">Doanh thu: {formatCurrency(profitData.revenue)}</p>
+                        <p className="font-semibold text-red-600">Chi phí: {formatCurrency(profitData.costs)}</p>
+                        <p className={`font-semibold ${profitData.profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          Lãi/Lỗ: {formatCurrency(profitData.profit)}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -794,7 +1209,7 @@ const Costs = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 pb-24 space-y-4">
+            <form onSubmit={handleSubmit} className="p-4 pb-36 space-y-4">
               {/* Date */}
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Ngày</label>
