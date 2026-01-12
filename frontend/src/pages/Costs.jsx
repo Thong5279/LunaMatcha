@@ -1067,7 +1067,19 @@ const Costs = () => {
       // #region agent log
       fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1023',message:'Before ChatGPT API call',data:{dataKeys:Object.keys(data||{}),trendsLength:data?.trends?.revenue?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
       // #endregion
+      
+      const startTime = Date.now();
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1026',message:'Starting ChatGPT API call',data:{startTime},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      
       const response = await chatgptService.analyze(data, analysisPeriod, analyzeAll);
+      
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1033',message:'ChatGPT API call completed',data:{duration:duration/1000+'s'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
       
       // #region agent log
       fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1026',message:'ChatGPT API success',data:{hasAnalysis:!!response.data?.analysis},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
@@ -1077,9 +1089,15 @@ const Costs = () => {
     } catch (error) {
       console.error('[Analysis] Error:', error);
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1031',message:'runAnalysis error',data:{status:error.response?.status,message:error.response?.data?.message,errorMessage:error.message},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1065',message:'runAnalysis error',data:{status:error.response?.status,message:error.response?.data?.message,errorMessage:error.message,isTimeout:error.code==='ECONNABORTED'||error.message?.includes('timeout')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
       // #endregion
-      setAnalysisError(error.response?.data?.message || error.message || 'Lỗi khi phân tích dữ liệu');
+      
+      // Handle timeout specifically
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        setAnalysisError('Yêu cầu phân tích mất quá nhiều thời gian. Vui lòng thử lại sau hoặc chọn khoảng thời gian ngắn hơn.');
+      } else {
+        setAnalysisError(error.response?.data?.message || error.message || 'Lỗi khi phân tích dữ liệu');
+      }
       setAnalysisLoading(false);
     }
   };
