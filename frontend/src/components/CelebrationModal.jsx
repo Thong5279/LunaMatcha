@@ -20,7 +20,37 @@ const CelebrationModal = ({ revenue, onClose }) => {
 
   // Xác định sticker và message dựa trên doanh thu
   const getCelebrationData = () => {
-    if (revenue >= 500000) {
+    if (revenue >= 1000000) {
+      return {
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1768201134/E0_B8_A3_E0_B8_A7_E0_B8_A2-_E0_B8_A1_E0_B8_B5_E0_B9_80_E0_B8_87_E0_B8_B4_E0_B8_99_szbvxx.gif',
+        message: '💖giàu hơn thần tài,💰triệu phú aka phú bà💖',
+        subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
+      };
+    } else if (revenue >= 900000) {
+      return {
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1768201184/tutu-tutu-capoo_kidrcp.gif',
+        message: '🧧Thần tài gõ cửa!🧧',
+        subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
+      };
+    } else if (revenue >= 800000) {
+      return {
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1768201067/capoo-bugcat_xsn66s.gif',
+        message: '💲yeahhhhhhhh bé iu giỏi quá đi💲',
+        subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
+      };
+    } else if (revenue >= 700000) {
+      return {
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1768201013/bugcat-capoo_wphjel.gif',
+        message: '💰Phú bà nèo dị chời💰',
+        subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
+      };
+    } else if (revenue >= 600000) {
+      return {
+        sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1768200844/capoo-_E8_8A_B1_E8_8A_B1_gll2pt.gif',
+        message: '🎋Người thành công có lối đi riêng🎋',
+        subMessage: 'Thôi đi về nghỉ ngơi thôi bé iu hẹ hẹ!',
+      };
+    } else if (revenue >= 500000) {
       return {
         sticker: 'https://res.cloudinary.com/dlstlvjaq/image/upload/v1766650346/bug-cat-capoo_fk2boh.gif',
         message: '🎉 Xuất sắc! Bạn đã đạt hơn 500k! 🎉',
