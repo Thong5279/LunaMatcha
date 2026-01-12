@@ -51,9 +51,17 @@ const getCostById = async (req, res) => {
 
 // Tạo chi phí mới
 const createCost = async (req, res) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:53',message:'createCost entry',data:{requestBody:req.body},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+  // #endregion
+  
   try {
     console.log('POST /api/costs - Request body:', req.body);
     const { date, category, customCategoryName, amount, note } = req.body;
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:57',message:'after destructuring request body',data:{date,category,customCategoryName,amount,note},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
 
     // Validation
     if (!date) {
@@ -84,6 +92,10 @@ const createCost = async (req, res) => {
       targetDate.setHours(0, 0, 0, 0);
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:87',message:'before creating Cost object',data:{targetDate:targetDate?.toISOString(),category,customCategoryName:category==='other'?(customCategoryName||'').trim():'',amount:parseFloat(amount),note:(note||'').trim()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+
     const cost = new Cost({
       date: targetDate,
       category,
@@ -105,10 +117,22 @@ const createCost = async (req, res) => {
       return res.status(400).json({ message: 'Ngày không hợp lệ' });
     }
 
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:108',message:'before cost.save()',data:{costCategory:cost.category,costNote:cost.note,costCustomName:cost.customCategoryName},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
+
     await cost.save();
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:110',message:'after cost.save() success',data:{costId:cost._id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+    // #endregion
     console.log('Cost created successfully:', cost._id);
     res.status(201).json(cost);
   } catch (error) {
+    // #region agent log
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'costController.js:111',message:'catch block entry',data:{errorName:error?.name,errorMessage:error?.message,errorStack:error?.stack?.substring(0,500),errorType:typeof error,isNextError:error?.message?.includes('next is not a function')},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+    // #endregion
+    
     console.error('Error creating cost:', error);
     console.error('Error name:', error.name);
     console.error('Error message:', error.message);
