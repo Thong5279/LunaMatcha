@@ -42,7 +42,7 @@ const getServerStartTime = () => {
  *    - Create new cron job
  *    - Title: LunaMatcha Backend Keep-Alive
  *    - Address: https://your-app-name.onrender.com/api/health
- *    - Schedule: Every 5 minutes (*/5 * * * *)
+ *    - Schedule: Every 5 minutes (*\/5 * * * *)
  *    - Active: Yes
  * 
  * RECOMMENDED SETTINGS:
@@ -69,4 +69,6 @@ router.get('/', (req, res) => {
 });
 
 module.exports = router;
+
+
 
