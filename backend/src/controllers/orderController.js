@@ -50,7 +50,7 @@ const createOrder = async (req, res) => {
     items.forEach((item) => {
       const itemTotal = (item.price || 0) * (item.quantity || 0);
       const toppingTotal = item.toppings && item.toppings.length > 0
-        ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+        ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (topping.quantity || 1) * (item.quantity || 0)), 0)
         : 0;
       totalAmount += itemTotal + toppingTotal;
     });
@@ -200,7 +200,7 @@ const updateOrder = async (req, res) => {
       items.forEach((item) => {
         const itemTotal = (item.price || 0) * (item.quantity || 0);
         const toppingTotal = item.toppings && item.toppings.length > 0
-          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (item.quantity || 0)), 0)
+          ? item.toppings.reduce((sum, topping) => sum + ((topping.price || 0) * (topping.quantity || 1) * (item.quantity || 0)), 0)
           : 0;
         totalAmount += itemTotal + toppingTotal;
       });
