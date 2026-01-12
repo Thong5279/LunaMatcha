@@ -89,7 +89,7 @@ const Home = () => {
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img 
-              src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,q_auto,f_auto/l_LogoLuna_mu9kyh/w_60,h_60,c_fill,g_center,fl_layer_apply/v1768211982/Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss.png" 
+              src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,r_max,q_auto,f_auto/l_Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss/w_80,h_80,c_fill,g_center,fl_layer_apply/v1768207142/LogoLuna_mu9kyh.jpg" 
               alt="Luna Matcha" 
               className="w-10 h-10 rounded-full object-cover"
               loading="eager"
