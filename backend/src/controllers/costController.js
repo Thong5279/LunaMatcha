@@ -52,6 +52,7 @@ const getCostById = async (req, res) => {
 // Tạo chi phí mới
 const createCost = async (req, res) => {
   try {
+    console.log('POST /api/costs - Request body:', req.body);
     const { date, category, customCategoryName, amount, note } = req.body;
 
     // Validation
@@ -86,18 +87,41 @@ const createCost = async (req, res) => {
     const cost = new Cost({
       date: targetDate,
       category,
-      customCategoryName: category === 'other' ? customCategoryName : '',
-      amount,
-      note: note || '',
+      customCategoryName: category === 'other' ? (customCategoryName || '').trim() : '',
+      amount: parseFloat(amount),
+      note: (note || '').trim(),
+    });
+
+    console.log('Creating cost with data:', {
+      date: targetDate,
+      category,
+      customCategoryName: cost.customCategoryName,
+      amount: cost.amount,
+      note: cost.note,
     });
 
     await cost.save();
+    console.log('Cost created successfully:', cost._id);
     res.status(201).json(cost);
   } catch (error) {
+    console.error('Error creating cost:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ message: error.message });
+      const errors = Object.values(error.errors).map(e => e.message);
+      return res.status(400).json({ 
+        message: 'Lỗi validation', 
+        errors 
+      });
     }
-    res.status(500).json({ message: error.message });
+    if (error.name === 'CastError') {
+      return res.status(400).json({ message: 'Dữ liệu không hợp lệ' });
+    }
+    res.status(500).json({ 
+      message: error.message || 'Lỗi server khi tạo chi phí' 
+    });
   }
 };
 
