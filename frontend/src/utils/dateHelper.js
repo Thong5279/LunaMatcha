@@ -47,6 +47,18 @@ export const formatDateDisplay = (dateString) => {
   return `${day}/${month}/${year}`;
 };
 
+/**
+ * Format Date object thành YYYY-MM-DD string (local timezone)
+ * Sử dụng để gửi date range queries đến API, tránh timezone issues
+ */
+export const formatDateForAPI = (date) => {
+  if (!date) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 
 
 

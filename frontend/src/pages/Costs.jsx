@@ -4,7 +4,7 @@ import { HiChevronLeft, HiArrowPath, HiPlus, HiPencil, HiTrash } from 'react-ico
 import { costService } from '../services/costService';
 import { analyticsService } from '../services/analyticsService';
 import showToast from '../utils/toast';
-import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear } from '../utils/dateHelper';
+import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, formatDateForAPI } from '../utils/dateHelper';
 import { formatCurrencyWithUnit, formatCurrency } from '../utils/formatCurrency';
 import ConfirmModal from '../components/ConfirmModal';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -131,25 +131,55 @@ const Costs = () => {
               revenue = response.data?.totalRevenue || 0;
             }
 
+            const startDateStr = formatDateForAPI(startDate);
+            const endDateStr = formatDateForAPI(endDate);
+            
             const costsResponse = await costService.getAll({
-              startDate: startDate.toISOString().split('T')[0],
-              endDate: endDate.toISOString().split('T')[0],
+              startDate: startDateStr,
+              endDate: endDateStr,
             });
             
-            // Handle different response formats
+            console.log(`[DEBUG] Trends - Period ${period} costs response:`, {
+              period,
+              startDate: startDateStr,
+              endDate: endDateStr,
+              hasData: !!costsResponse?.data,
+              isArray: Array.isArray(costsResponse?.data)
+            });
+            
+            // Handle different response formats - axios wraps response in .data
             let periodCosts = [];
             if (Array.isArray(costsResponse?.data)) {
+              // Standard axios response format
               periodCosts = costsResponse.data;
             } else if (Array.isArray(costsResponse)) {
+              // Direct array response (shouldn't happen with axios, but handle it)
               periodCosts = costsResponse;
-            } else if (costsResponse?.data && typeof costsResponse.data === 'object') {
+            } else if (costsResponse?.data && typeof costsResponse.data === 'object' && !Array.isArray(costsResponse.data)) {
+              // If data is an object, try to extract array
               periodCosts = Object.values(costsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+            } else {
+              // Fallback: empty array
+              periodCosts = [];
+            }
+            
+            // Ensure periodCosts is always an array
+            if (!Array.isArray(periodCosts)) {
+              periodCosts = [];
             }
             
             costs = periodCosts.reduce((sum, cost) => {
               const amount = cost?.amount || 0;
               return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
             }, 0);
+            
+            console.log(`[DEBUG] Trends - Period ${period} calculated:`, {
+              period,
+              costsCount: periodCosts.length,
+              costs: costs,
+              revenue: revenue,
+              profit: revenue - costs
+            });
 
             return {
               period: label,
@@ -431,66 +461,98 @@ const Costs = () => {
       }
 
       // Get costs for the period
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      const startDateStr = formatDateForAPI(startDate);
+      const endDateStr = formatDateForAPI(endDate);
       console.log('[DEBUG] Fetching costs for period:', { startDate: startDateStr, endDate: endDateStr });
       
       const costsResponse = await costService.getAll({
         startDate: startDateStr,
         endDate: endDateStr,
       });
-      console.log('[DEBUG] Costs API response:', { 
+      console.log('[DEBUG] Costs API response (raw):', { 
         response: costsResponse, 
         hasData: !!costsResponse?.data,
         isArray: Array.isArray(costsResponse?.data),
         responseType: typeof costsResponse,
-        responseKeys: costsResponse ? Object.keys(costsResponse) : []
+        responseKeys: costsResponse ? Object.keys(costsResponse) : [],
+        dataType: typeof costsResponse?.data,
+        dataIsArray: Array.isArray(costsResponse?.data)
       });
       
-      // Handle different response formats
+      // Handle different response formats - axios wraps response in .data
       let costs = [];
       if (Array.isArray(costsResponse?.data)) {
+        // Standard axios response format
         costs = costsResponse.data;
+        console.log('[DEBUG] Extracted costs from costsResponse.data (axios format)');
       } else if (Array.isArray(costsResponse)) {
+        // Direct array response (shouldn't happen with axios, but handle it)
         costs = costsResponse;
-      } else if (costsResponse?.data && typeof costsResponse.data === 'object') {
+        console.log('[DEBUG] Extracted costs from direct array response');
+      } else if (costsResponse?.data && typeof costsResponse.data === 'object' && !Array.isArray(costsResponse.data)) {
         // If data is an object, try to extract array
         costs = Object.values(costsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+        console.log('[DEBUG] Extracted costs from object response');
+      } else {
+        // Fallback: empty array
+        costs = [];
+        console.warn('[DEBUG] Could not extract costs array, using empty array');
+      }
+      
+      // Ensure costs is always an array
+      if (!Array.isArray(costs)) {
+        console.warn('[DEBUG] Costs is not an array, converting to array');
+        costs = [];
       }
       
       console.log('[DEBUG] Processed costs:', { 
         costsCount: costs.length, 
         costs: costs,
-        costsSample: costs.slice(0, 2)
+        costsSample: costs.slice(0, 2),
+        firstCostAmount: costs[0]?.amount,
+        firstCostCategory: costs[0]?.category
       });
       
       const totalCosts = costs.reduce((sum, cost) => {
         const amount = cost?.amount || 0;
         return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
       }, 0);
-      console.log('[DEBUG] Total costs calculated:', totalCosts);
+      console.log('[DEBUG] Total costs calculated from array:', totalCosts);
 
       // Get previous period costs
-      const prevStartDateStr = previousStartDate.toISOString().split('T')[0];
-      const prevEndDateStr = previousEndDate.toISOString().split('T')[0];
+      const prevStartDateStr = formatDateForAPI(previousStartDate);
+      const prevEndDateStr = formatDateForAPI(previousEndDate);
       console.log('[DEBUG] Fetching previous period costs:', { startDate: prevStartDateStr, endDate: prevEndDateStr });
       
       const prevCostsResponse = await costService.getAll({
         startDate: prevStartDateStr,
         endDate: prevEndDateStr,
       });
-      console.log('[DEBUG] Previous costs API response:', { 
+      console.log('[DEBUG] Previous costs API response (raw):', { 
         response: prevCostsResponse,
-        hasData: !!prevCostsResponse?.data 
+        hasData: !!prevCostsResponse?.data,
+        isArray: Array.isArray(prevCostsResponse?.data)
       });
       
       let prevCosts = [];
       if (Array.isArray(prevCostsResponse?.data)) {
         prevCosts = prevCostsResponse.data;
+        console.log('[DEBUG] Extracted previous costs from prevCostsResponse.data (axios format)');
       } else if (Array.isArray(prevCostsResponse)) {
         prevCosts = prevCostsResponse;
-      } else if (prevCostsResponse?.data && typeof prevCostsResponse.data === 'object') {
+        console.log('[DEBUG] Extracted previous costs from direct array response');
+      } else if (prevCostsResponse?.data && typeof prevCostsResponse.data === 'object' && !Array.isArray(prevCostsResponse.data)) {
         prevCosts = Object.values(prevCostsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+        console.log('[DEBUG] Extracted previous costs from object response');
+      } else {
+        prevCosts = [];
+        console.warn('[DEBUG] Could not extract previous costs array, using empty array');
+      }
+      
+      // Ensure prevCosts is always an array
+      if (!Array.isArray(prevCosts)) {
+        console.warn('[DEBUG] PrevCosts is not an array, converting to array');
+        prevCosts = [];
       }
       
       const previousTotalCosts = prevCosts.reduce((sum, cost) => {
@@ -515,28 +577,46 @@ const Costs = () => {
       }, { material: 0, ice: 0, other: 0 });
       
       console.log('[DEBUG] Costs by category:', costsByCategory);
+      
+      // Fallback: If totalCosts is 0 but costsByCategory has values, recalculate from costsByCategory
+      const sumFromCategory = Object.values(costsByCategory).reduce((sum, val) => sum + (val || 0), 0);
+      const finalTotalCosts = totalCosts > 0 ? totalCosts : sumFromCategory;
+      
+      console.log('[DEBUG] Cost calculation validation:', {
+        totalCostsFromArray: totalCosts,
+        sumFromCategory: sumFromCategory,
+        finalTotalCosts: finalTotalCosts,
+        usingFallback: totalCosts === 0 && sumFromCategory > 0
+      });
+      
+      // Recalculate profit with final total costs
+      const finalProfit = revenue - finalTotalCosts;
+      const finalProfitChange = finalProfit - previousProfit;
+      const finalProfitChangePercent = previousProfit !== 0 ? (finalProfitChange / previousProfit) * 100 : (finalProfit > 0 ? 100 : 0);
 
       const profitDataToSet = {
         revenue: revenue || 0,
-        costs: totalCosts || 0,
-        profit: profit || 0,
-        profitMargin: calculateProfitMargin(revenue, totalCosts),
+        costs: finalTotalCosts || 0,
+        profit: finalProfit || 0,
+        profitMargin: calculateProfitMargin(revenue, finalTotalCosts),
         previousRevenue: previousRevenue || 0,
         previousCosts: previousTotalCosts || 0,
         previousProfit: previousProfit || 0,
-        profitChange: profitChange || 0,
-        profitChangePercent: profitChangePercent || 0,
+        profitChange: finalProfitChange || 0,
+        profitChangePercent: finalProfitChangePercent || 0,
         costsByCategory: costsByCategory || { material: 0, ice: 0, other: 0 },
         costs: costs || [],
       };
       
       console.log('[DEBUG] Final profitData to set:', profitDataToSet);
       console.log('[DEBUG] Costs breakdown:', {
-        totalCosts,
+        totalCostsFromArray: totalCosts,
+        sumFromCategory: sumFromCategory,
+        finalTotalCosts: finalTotalCosts,
         costsCount: costs.length,
         costsByCategory,
         revenue,
-        profit
+        profit: finalProfit
       });
       setProfitData(profitDataToSet);
     } catch (error) {
@@ -828,7 +908,7 @@ const Costs = () => {
         {/* Costs List - Grouped by Category */}
         {costs.length === 0 ? (
           <EmptyState
-            icon={HiCube}
+            illustration="https://res.cloudinary.com/dlstlvjaq/image/upload/v1768242097/giphy_xuodgw.gif"
             title="Chưa có chi phí nào"
             message={`Chưa có chi phí nào cho ngày ${formatDateDisplay(selectedDate)}`}
           />
@@ -1008,11 +1088,19 @@ const Costs = () => {
                 </div>
 
                 {/* Trends Chart - Line Chart */}
-                {trendsData.length > 0 && (
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <h3 className="font-semibold mb-4">Xu hướng theo thời gian</h3>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={trendsData} isAnimationActive={false}>
+                {trendsData.length > 0 && (() => {
+                  console.log('[DEBUG] Rendering Trends Chart with data:', {
+                    trendsDataLength: trendsData.length,
+                    trendsData: trendsData,
+                    costsValues: trendsData.map(d => d.costs),
+                    revenueValues: trendsData.map(d => d.revenue),
+                    profitValues: trendsData.map(d => d.profit)
+                  });
+                  return (
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <h3 className="font-semibold mb-4">Xu hướng theo thời gian</h3>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <LineChart data={trendsData} isAnimationActive={false}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="period" />
                         <YAxis />
@@ -1048,31 +1136,40 @@ const Costs = () => {
                 )}
 
                 {/* Bar Chart: Revenue vs Costs vs Profit */}
-                <div className="bg-white rounded-lg p-4 shadow">
-                  <h3 className="font-semibold mb-4">Doanh thu vs Chi phí vs Lãi/Lỗ (Kỳ này)</h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart
-                      data={[
-                        {
-                          name: profitPeriod === 'monthly' ? 'Tháng' : profitPeriod === 'quarterly' ? 'Quý' : 'Năm',
-                          DoanhThu: profitData.revenue,
-                          ChiPhi: profitData.costs,
-                          LaiLo: profitData.profit,
-                        },
-                      ]}
-                      isAnimationActive={false}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="name" />
-                      <YAxis />
-                      <Tooltip formatter={(value) => formatCurrency(value)} />
-                      <Legend />
-                      <Bar dataKey="DoanhThu" fill="#10b981" />
-                      <Bar dataKey="ChiPhi" fill="#ef4444" />
-                      <Bar dataKey="LaiLo" fill={profitData.profit >= 0 ? '#10b981' : '#ef4444'} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+                {(() => {
+                  const barChartData = [{
+                    name: profitPeriod === 'monthly' ? 'Tháng' : profitPeriod === 'quarterly' ? 'Quý' : 'Năm',
+                    DoanhThu: profitData.revenue,
+                    ChiPhi: profitData.costs,
+                    LaiLo: profitData.profit,
+                  }];
+                  console.log('[DEBUG] Rendering Bar Chart with data:', {
+                    barChartData,
+                    revenue: profitData.revenue,
+                    costs: profitData.costs,
+                    profit: profitData.profit
+                  });
+                  return (
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <h3 className="font-semibold mb-4">Doanh thu vs Chi phí vs Lãi/Lỗ (Kỳ này)</h3>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart
+                          data={barChartData}
+                          isAnimationActive={false}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip formatter={(value) => formatCurrency(value)} />
+                          <Legend />
+                          <Bar dataKey="DoanhThu" fill="#10b981" />
+                          <Bar dataKey="ChiPhi" fill="#ef4444" />
+                          <Bar dataKey="LaiLo" fill={profitData.profit >= 0 ? '#10b981' : '#ef4444'} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  );
+                })()}
 
                 {/* Pie Chart: Costs by Category */}
                 {profitData.costs > 0 && (
@@ -1295,7 +1392,7 @@ const Costs = () => {
               </>
             ) : (
               <EmptyState
-                icon={HiCube}
+                illustration="https://res.cloudinary.com/dlstlvjaq/image/upload/v1768242097/giphy_xuodgw.gif"
                 title="Chưa có dữ liệu"
                 message="Chọn thời gian để xem lãi/lỗ"
               />

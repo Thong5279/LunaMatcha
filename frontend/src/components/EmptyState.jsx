@@ -18,7 +18,14 @@ const EmptyState = ({ icon, title, message, action, illustration }) => {
     <div className="flex flex-col items-center justify-center py-20 px-4 animate-fadeIn">
       {/* Illustration với animation */}
       <div className="mb-6 animate-bounce-slow">
-        {typeof displayIllustration === 'string' ? (
+        {illustration && (illustration.startsWith('http://') || illustration.startsWith('https://')) ? (
+          <img 
+            src={illustration} 
+            alt="Empty state illustration" 
+            className="w-32 h-32 object-contain mb-4"
+            loading="lazy"
+          />
+        ) : typeof displayIllustration === 'string' ? (
           <div className="text-8xl mb-2" role="img" aria-label="Empty state illustration">
             {displayIllustration}
           </div>
