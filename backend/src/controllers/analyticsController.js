@@ -235,41 +235,17 @@ const getWeeklyAnalytics = async (req, res) => {
   }
 };
 
-// Helper function: Tính date range cho quý
-const getQuarterDateRange = (quarter, year) => {
-  const startMonth = (quarter - 1) * 3;
-  const start = new Date(year, startMonth, 1, 0, 0, 0, 0);
-  const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
-  return { start, end };
-};
-
-// Helper function: Tính date range cho năm
-const getYearDateRange = (year) => {
-  const start = new Date(year, 0, 1, 0, 0, 0, 0);
-  const end = new Date(year, 11, 31, 23, 59, 59, 999);
-  return { start, end };
-};
-
 // Thống kê theo tháng
 const getMonthlyAnalytics = async (req, res) => {
   try {
-    const { month, period } = req.query; // Format: YYYY-MM, period: 'month' | 'quarter' | 'year'
-    
-    // Nếu có period parameter, sử dụng endpoint mới
-    if (period === 'month' || !period) {
-      if (!month) {
-        return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
-      }
+    const { month } = req.query; // Format: YYYY-MM
+    if (!month) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
+    }
 
-      const [year, monthNum] = month.split('-').map(Number);
-      
-      // Validate month format
-      if (isNaN(year) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
-        return res.status(400).json({ message: 'Định dạng tháng không hợp lệ. Vui lòng sử dụng YYYY-MM' });
-      }
-      
-      const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
-      const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+    const [year, monthNum] = month.split('-').map(Number);
+    const start = new Date(year, monthNum - 1, 1);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -360,9 +336,6 @@ const getMonthlyAnalytics = async (req, res) => {
     });
 
     res.json({
-      period: 'month',
-      periodValue: monthNum,
-      year,
       month,
       startDate: start,
       endDate: end,
@@ -384,25 +357,15 @@ const getMonthlyAnalytics = async (req, res) => {
 // Thống kê theo quý
 const getQuarterlyAnalytics = async (req, res) => {
   try {
-    const { quarter, period, year: yearParam } = req.query; // Format: YYYY-Q hoặc period=quarter&quarter=X&year=Y
-    
-    let year, quarterNum;
-    if (period === 'quarter') {
-      // Format mới: period=quarter&quarter=X&year=Y
-      quarterNum = parseInt(quarter);
-      year = parseInt(yearParam);
-      if (!quarterNum || quarterNum < 1 || quarterNum > 4 || !year) {
-        return res.status(400).json({ message: 'Vui lòng cung cấp quý (1-4) và năm hợp lệ' });
-      }
-    } else {
-      // Format cũ: YYYY-Q
-      if (!quarter) {
-        return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
-      }
-      [year, quarterNum] = quarter.split('-Q').map(Number);
+    const { quarter } = req.query; // Format: YYYY-Q
+    if (!quarter) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
     }
 
-    const { start, end } = getQuarterDateRange(quarterNum, year);
+    const [year, quarterNum] = quarter.split('-Q').map(Number);
+    const startMonth = (quarterNum - 1) * 3;
+    const start = new Date(year, startMonth, 1);
+    const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -481,10 +444,7 @@ const getQuarterlyAnalytics = async (req, res) => {
     }, 0);
 
     res.json({
-      period: 'quarter',
-      periodValue: quarterNum,
-      year,
-      quarter: period === 'quarter' ? `${year}-Q${quarterNum}` : quarter,
+      quarter,
       startDate: start,
       endDate: end,
       totalRevenue,
@@ -504,14 +464,13 @@ const getQuarterlyAnalytics = async (req, res) => {
 // Thống kê theo năm
 const getYearlyAnalytics = async (req, res) => {
   try {
-    const { year: yearParam, period } = req.query;
-    const year = parseInt(yearParam);
-    
-    if (!year || isNaN(year)) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY) hợp lệ' });
+    const { year } = req.query;
+    if (!year) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY)' });
     }
 
-    const { start, end } = getYearDateRange(year);
+    const start = new Date(year, 0, 1);
+    const end = new Date(year, 11, 31, 23, 59, 59, 999);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -602,8 +561,6 @@ const getYearlyAnalytics = async (req, res) => {
     });
 
     res.json({
-      period: 'year',
-      periodValue: year,
       year,
       startDate: start,
       endDate: end,
