@@ -135,8 +135,21 @@ const Costs = () => {
               startDate: startDate.toISOString().split('T')[0],
               endDate: endDate.toISOString().split('T')[0],
             });
-            const periodCosts = costsResponse.data || [];
-            costs = periodCosts.reduce((sum, cost) => sum + cost.amount, 0);
+            
+            // Handle different response formats
+            let periodCosts = [];
+            if (Array.isArray(costsResponse?.data)) {
+              periodCosts = costsResponse.data;
+            } else if (Array.isArray(costsResponse)) {
+              periodCosts = costsResponse;
+            } else if (costsResponse?.data && typeof costsResponse.data === 'object') {
+              periodCosts = Object.values(costsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+            }
+            
+            costs = periodCosts.reduce((sum, cost) => {
+              const amount = cost?.amount || 0;
+              return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+            }, 0);
 
             return {
               period: label,
@@ -354,6 +367,8 @@ const Costs = () => {
   const fetchProfitData = async () => {
     try {
       setProfitLoading(true);
+      console.log('[DEBUG] Fetching profit data:', { profitPeriod, profitMonth, profitQuarter, profitYear });
+      
       let revenue = 0;
       let previousRevenue = 0;
       let startDate, endDate;
@@ -416,20 +431,73 @@ const Costs = () => {
       }
 
       // Get costs for the period
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      console.log('[DEBUG] Fetching costs for period:', { startDate: startDateStr, endDate: endDateStr });
+      
       const costsResponse = await costService.getAll({
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
+        startDate: startDateStr,
+        endDate: endDateStr,
       });
-      const costs = costsResponse.data || [];
-      const totalCosts = costs.reduce((sum, cost) => sum + cost.amount, 0);
+      console.log('[DEBUG] Costs API response:', { 
+        response: costsResponse, 
+        hasData: !!costsResponse?.data,
+        isArray: Array.isArray(costsResponse?.data),
+        responseType: typeof costsResponse,
+        responseKeys: costsResponse ? Object.keys(costsResponse) : []
+      });
+      
+      // Handle different response formats
+      let costs = [];
+      if (Array.isArray(costsResponse?.data)) {
+        costs = costsResponse.data;
+      } else if (Array.isArray(costsResponse)) {
+        costs = costsResponse;
+      } else if (costsResponse?.data && typeof costsResponse.data === 'object') {
+        // If data is an object, try to extract array
+        costs = Object.values(costsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+      }
+      
+      console.log('[DEBUG] Processed costs:', { 
+        costsCount: costs.length, 
+        costs: costs,
+        costsSample: costs.slice(0, 2)
+      });
+      
+      const totalCosts = costs.reduce((sum, cost) => {
+        const amount = cost?.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
+      console.log('[DEBUG] Total costs calculated:', totalCosts);
 
       // Get previous period costs
+      const prevStartDateStr = previousStartDate.toISOString().split('T')[0];
+      const prevEndDateStr = previousEndDate.toISOString().split('T')[0];
+      console.log('[DEBUG] Fetching previous period costs:', { startDate: prevStartDateStr, endDate: prevEndDateStr });
+      
       const prevCostsResponse = await costService.getAll({
-        startDate: previousStartDate.toISOString().split('T')[0],
-        endDate: previousEndDate.toISOString().split('T')[0],
+        startDate: prevStartDateStr,
+        endDate: prevEndDateStr,
       });
-      const prevCosts = prevCostsResponse.data || [];
-      const previousTotalCosts = prevCosts.reduce((sum, cost) => sum + cost.amount, 0);
+      console.log('[DEBUG] Previous costs API response:', { 
+        response: prevCostsResponse,
+        hasData: !!prevCostsResponse?.data 
+      });
+      
+      let prevCosts = [];
+      if (Array.isArray(prevCostsResponse?.data)) {
+        prevCosts = prevCostsResponse.data;
+      } else if (Array.isArray(prevCostsResponse)) {
+        prevCosts = prevCostsResponse;
+      } else if (prevCostsResponse?.data && typeof prevCostsResponse.data === 'object') {
+        prevCosts = Object.values(prevCostsResponse.data).filter(item => Array.isArray(item)).flat() || [];
+      }
+      
+      const previousTotalCosts = prevCosts.reduce((sum, cost) => {
+        const amount = cost?.amount || 0;
+        return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+      }, 0);
+      console.log('[DEBUG] Previous total costs calculated:', previousTotalCosts);
 
       // Calculate profit
       const profit = revenue - totalCosts;
@@ -439,26 +507,49 @@ const Costs = () => {
 
       // Group costs by category
       const costsByCategory = costs.reduce((acc, cost) => {
-        acc[cost.category] = (acc[cost.category] || 0) + cost.amount;
+        const category = cost?.category || 'other';
+        const amount = cost?.amount || 0;
+        const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+        acc[category] = (acc[category] || 0) + numAmount;
         return acc;
       }, { material: 0, ice: 0, other: 0 });
+      
+      console.log('[DEBUG] Costs by category:', costsByCategory);
 
-      setProfitData({
-        revenue,
-        costs: totalCosts,
-        profit,
+      const profitDataToSet = {
+        revenue: revenue || 0,
+        costs: totalCosts || 0,
+        profit: profit || 0,
         profitMargin: calculateProfitMargin(revenue, totalCosts),
-        previousRevenue,
-        previousCosts: previousTotalCosts,
-        previousProfit,
-        profitChange,
-        profitChangePercent,
+        previousRevenue: previousRevenue || 0,
+        previousCosts: previousTotalCosts || 0,
+        previousProfit: previousProfit || 0,
+        profitChange: profitChange || 0,
+        profitChangePercent: profitChangePercent || 0,
+        costsByCategory: costsByCategory || { material: 0, ice: 0, other: 0 },
+        costs: costs || [],
+      };
+      
+      console.log('[DEBUG] Final profitData to set:', profitDataToSet);
+      console.log('[DEBUG] Costs breakdown:', {
+        totalCosts,
+        costsCount: costs.length,
         costsByCategory,
-        costs,
+        revenue,
+        profit
       });
+      setProfitData(profitDataToSet);
     } catch (error) {
-      showToast.error('Lỗi khi tải dữ liệu lãi/lỗ');
-      console.error(error);
+      console.error('[DEBUG] Error fetching profit data:', error);
+      console.error('[DEBUG] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        stack: error.stack?.substring(0, 500)
+      });
+      showToast.error(error.response?.data?.message || 'Lỗi khi tải dữ liệu lãi/lỗ');
+      // Set profitData to null để hiển thị empty state
+      setProfitData(null);
     } finally {
       setProfitLoading(false);
     }
@@ -470,10 +561,22 @@ const Costs = () => {
       const startDate = selectedDate;
       const endDate = selectedDate;
       const response = await costService.getAll({ startDate, endDate });
-      setCosts(response.data || []);
+      
+      // Handle different response formats
+      let costsData = [];
+      if (Array.isArray(response?.data)) {
+        costsData = response.data;
+      } else if (Array.isArray(response)) {
+        costsData = response;
+      } else if (response?.data && typeof response.data === 'object') {
+        costsData = Object.values(response.data).filter(item => Array.isArray(item)).flat() || [];
+      }
+      
+      setCosts(costsData);
     } catch (error) {
       showToast.error('Lỗi khi tải danh sách chi phí');
-      console.error(error);
+      console.error('[DEBUG] Error fetching costs:', error);
+      setCosts([]);
     } finally {
       setLoading(false);
     }
@@ -862,7 +965,7 @@ const Costs = () => {
             {/* Profit Data Display */}
             {profitLoading ? (
               <LoadingSkeleton type="page" />
-            ) : profitData ? (
+            ) : profitData && (profitData.revenue !== undefined || profitData.costs !== undefined) ? (
               <>
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 gap-3">
@@ -875,8 +978,16 @@ const Costs = () => {
                   <div className="bg-white rounded-lg p-4 shadow">
                     <p className="text-sm text-gray-600 mb-1">Chi phí</p>
                     <p className="text-xl font-bold text-red-600">
-                      {formatCurrency(profitData.costs)}
+                      {formatCurrency(profitData.costs || 0)}
                     </p>
+                    {profitData.costsByCategory && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        {Object.entries(profitData.costsByCategory)
+                          .filter(([_, amount]) => amount > 0)
+                          .map(([category, amount]) => `${categoryLabels[category]}: ${formatCurrency(amount)}`)
+                          .join(', ')}
+                      </p>
+                    )}
                   </div>
                   <div className="bg-white rounded-lg p-4 shadow">
                     <p className="text-sm text-gray-600 mb-1">Lãi/Lỗ</p>
@@ -1056,13 +1167,14 @@ const Costs = () => {
                 })()}
 
                 {/* Breakdown Analysis */}
-                {profitData.costs > 0 && (
+                {profitData.costsByCategory && (
                   <div className="bg-white rounded-lg p-4 shadow">
                     <h3 className="font-semibold mb-4">Phân tích chi tiết chi phí</h3>
-                    <div className="space-y-3">
-                      {Object.entries(profitData.costsByCategory).map(([category, amount]) => {
-                        if (amount === 0) return null;
-                        const percentage = (amount / profitData.costs) * 100;
+                    {profitData.costs > 0 ? (
+                      <div className="space-y-3">
+                        {Object.entries(profitData.costsByCategory).map(([category, amount]) => {
+                          if (amount === 0) return null;
+                          const percentage = (amount / profitData.costs) * 100;
                         return (
                           <div key={category} className="border border-gray-200 rounded-lg p-3">
                             <div className="flex justify-between items-center mb-2">
@@ -1085,7 +1197,10 @@ const Costs = () => {
                           </div>
                         );
                       })}
-                    </div>
+                      </div>
+                    ) : (
+                      <p className="text-gray-500 text-sm">Chưa có chi phí nào trong kỳ này</p>
+                    )}
                   </div>
                 )}
 
