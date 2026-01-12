@@ -87,14 +87,16 @@ const Home = () => {
         style={{ background: getGradientColor() }}
       >
         <div className="px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <div className="relative w-10 h-10 flex items-center justify-center">
-              {/* Logo Luna - ở dưới, crop tròn */}
+          <div className="flex items-center gap-3">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center -my-1">
+              {/* Logo Luna - ở dưới, crop tròn, kích thước lớn hơn */}
               <img 
-                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_65,h_65,c_fill,r_max,q_auto,f_auto/v1768207142/LogoLuna_mu9kyh.jpg" 
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_120,h_120,c_fill,r_max,q_auto,f_auto/v1768207142/LogoLuna_mu9kyh.jpg" 
                 alt="Luna Matcha Logo" 
-                className="absolute w-[65%] h-[65%] rounded-full object-cover"
+                className="absolute rounded-full object-cover"
                 style={{ 
+                  width: '75%',
+                  height: '75%',
                   top: '50%', 
                   left: '50%', 
                   transform: 'translate(-50%, -50%)',
@@ -104,9 +106,9 @@ const Home = () => {
                 fetchPriority="high"
                 decoding="async"
               />
-              {/* Khung sakura - overlay lên trên */}
+              {/* Khung sakura - overlay lên trên, kích thước đầy đủ */}
               <img 
-                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,q_auto,f_auto/v1768211982/Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss.png" 
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_200,h_200,c_fill,q_auto,f_auto/v1768211982/Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss.png" 
                 alt="Sakura Frame" 
                 className="absolute w-full h-full object-contain"
                 style={{ zIndex: 2 }}
