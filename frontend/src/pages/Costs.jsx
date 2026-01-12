@@ -4,6 +4,7 @@ import { HiChevronLeft, HiArrowPath, HiPlus, HiPencil, HiTrash } from 'react-ico
 import { costService } from '../services/costService';
 import { analyticsService } from '../services/analyticsService';
 import { chatgptService } from '../services/chatgptService';
+import { analysisHistoryService } from '../services/analysisHistoryService';
 import showToast from '../utils/toast';
 import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, formatDateForAPI } from '../utils/dateHelper';
 import { formatCurrencyWithUnit, formatCurrency } from '../utils/formatCurrency';
@@ -33,7 +34,7 @@ const Costs = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('costs_authenticated') === 'true';
   });
-  const [activeTab, setActiveTab] = useState('costs'); // 'costs' | 'profit' | 'analysis'
+  const [activeTab, setActiveTab] = useState('costs'); // 'costs' | 'profit' | 'analysis' | 'history'
 
   const handlePasswordSuccess = () => {
     setIsAuthenticated(true);
@@ -69,7 +70,19 @@ const Costs = () => {
   const [analysisResult, setAnalysisResult] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState(null);
-
+  
+  // History tab state
+  const [analysisHistory, setAnalysisHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFilters, setHistoryFilters] = useState({
+    startDate: '',
+    endDate: '',
+    period: 'all',
+    analyzeAll: 'all',
+  });
+  const [selectedHistory, setSelectedHistory] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  
   // Form state
   const [formData, setFormData] = useState({
     date: getTodayDate(),
@@ -96,8 +109,10 @@ const Costs = () => {
     if (activeTab === 'profit') {
       fetchProfitData();
       fetchTrendsData();
+    } else if (activeTab === 'history') {
+      fetchAnalysisHistory();
     }
-  }, [profitPeriod, profitMonth, profitQuarter, profitYear, activeTab]);
+  }, [profitPeriod, profitMonth, profitQuarter, profitYear, activeTab, historyFilters]);
 
   const fetchTrendsData = async () => {
     try {
@@ -1084,7 +1099,31 @@ const Costs = () => {
       // #region agent log
       fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1026',message:'ChatGPT API success',data:{hasAnalysis:!!response.data?.analysis},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
       // #endregion
-      setAnalysisResult(response.data?.analysis || 'Không nhận được kết quả phân tích');
+      const analysisText = response.data?.analysis || 'Không nhận được kết quả phân tích';
+      setAnalysisResult(analysisText);
+      
+      // Auto-save to history (backend already saves, but we can also save from frontend for metadata)
+      try {
+        await analysisHistoryService.create({
+          analysis: analysisText,
+          period: analysisPeriod,
+          periodValue: analyzeAll ? null : periodValue,
+          analyzeAll,
+          metadata: {
+            revenue: data.revenue?.current || 0,
+            costs: data.costs?.total || 0,
+            profit: data.profit?.amount || 0,
+            profitMargin: data.profit?.margin || 0,
+            totalOrders: data.orders?.total || 0,
+            averageOrderValue: data.orders?.averageOrderValue || 0,
+          },
+        });
+        showToast.success('Đã lưu phân tích vào lịch sử');
+      } catch (saveError) {
+        console.error('[Analysis] Error saving to history:', saveError);
+        // Don't show error to user, backend already saved
+      }
+      
       setAnalysisLoading(false);
     } catch (error) {
       console.error('[Analysis] Error:', error);
@@ -1100,6 +1139,54 @@ const Costs = () => {
       }
       setAnalysisLoading(false);
     }
+  };
+
+  // Fetch analysis history with filters
+  const fetchAnalysisHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const params = {};
+      
+      if (historyFilters.startDate) {
+        params.startDate = historyFilters.startDate;
+      }
+      if (historyFilters.endDate) {
+        params.endDate = historyFilters.endDate;
+      }
+      if (historyFilters.period && historyFilters.period !== 'all') {
+        params.period = historyFilters.period;
+      }
+      if (historyFilters.analyzeAll !== 'all') {
+        params.analyzeAll = historyFilters.analyzeAll === 'true';
+      }
+      
+      const response = await analysisHistoryService.getAll(params);
+      setAnalysisHistory(response.data || []);
+    } catch (error) {
+      console.error('[History] Error fetching history:', error);
+      showToast.error('Lỗi khi tải lịch sử phân tích');
+      setAnalysisHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Delete analysis from history
+  const handleDeleteHistory = async (id) => {
+    try {
+      await analysisHistoryService.delete(id);
+      showToast.success('Đã xóa phân tích');
+      fetchAnalysisHistory(); // Refresh list
+    } catch (error) {
+      console.error('[History] Error deleting:', error);
+      showToast.error('Lỗi khi xóa phân tích');
+    }
+  };
+
+  // View analysis from history
+  const handleViewHistory = (historyItem) => {
+    setSelectedHistory(historyItem);
+    setShowHistoryModal(true);
   };
 
   const fetchProfitData = async () => {
@@ -1628,6 +1715,16 @@ const Costs = () => {
               }`}
             >
               Phân tích
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 px-4 py-3 text-center font-medium transition-colors ${
+                activeTab === 'history'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-gray-600 hover:text-accent'
+              }`}
+            >
+              Lịch sử
             </button>
           </div>
         </div>
@@ -2715,7 +2812,242 @@ const Costs = () => {
             )}
           </>
         )}
+
+        {/* History Tab Content */}
+        {activeTab === 'history' && (
+          <>
+            {/* Filter Section */}
+            <div className="bg-white rounded-lg p-4 shadow mb-4">
+              <h3 className="text-lg font-semibold mb-4">Bộ lọc</h3>
+              <div className="space-y-4">
+                {/* Date Range */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700">Từ ngày</label>
+                    <input
+                      type="date"
+                      value={historyFilters.startDate}
+                      onChange={(e) => setHistoryFilters({ ...historyFilters, startDate: e.target.value })}
+                      className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-700">Đến ngày</label>
+                    <input
+                      type="date"
+                      value={historyFilters.endDate}
+                      onChange={(e) => setHistoryFilters({ ...historyFilters, endDate: e.target.value })}
+                      className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                </div>
+
+                {/* Period Filter */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700">Loại period</label>
+                  <select
+                    value={historyFilters.period}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, period: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="monthly">Tháng</option>
+                    <option value="quarterly">Quý</option>
+                    <option value="yearly">Năm</option>
+                  </select>
+                </div>
+
+                {/* AnalyzeAll Filter */}
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-gray-700">Phân tích toàn bộ</label>
+                  <select
+                    value={historyFilters.analyzeAll}
+                    onChange={(e) => setHistoryFilters({ ...historyFilters, analyzeAll: e.target.value })}
+                    className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                  >
+                    <option value="all">Tất cả</option>
+                    <option value="true">Có</option>
+                    <option value="false">Không</option>
+                  </select>
+                </div>
+
+                {/* Clear Filters Button */}
+                <button
+                  onClick={() => {
+                    setHistoryFilters({
+                      startDate: '',
+                      endDate: '',
+                      period: 'all',
+                      analyzeAll: 'all',
+                    });
+                  }}
+                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium"
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            </div>
+
+            {/* History List */}
+            {historyLoading ? (
+              <LoadingSkeleton type="page" />
+            ) : analysisHistory.length > 0 ? (
+              <div className="space-y-3">
+                {analysisHistory.map((item) => (
+                  <div
+                    key={item._id}
+                    className="bg-white rounded-lg p-4 shadow hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm text-gray-500">
+                            {new Date(item.createdAt).toLocaleString('vi-VN', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                            {item.period === 'monthly' && 'Tháng'}
+                            {item.period === 'quarterly' && 'Quý'}
+                            {item.period === 'yearly' && 'Năm'}
+                            {item.period === 'all' && 'Toàn bộ'}
+                          </span>
+                          {item.analyzeAll && (
+                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                              Toàn bộ dữ liệu
+                            </span>
+                          )}
+                          {item.periodValue && (
+                            <span className="text-sm text-gray-600">{item.periodValue}</span>
+                          )}
+                        </div>
+                        {item.metadata && (item.metadata.revenue || item.metadata.costs || item.metadata.profit) && (
+                          <div className="text-xs text-gray-600 mb-2">
+                            Doanh thu: {formatCurrency(item.metadata.revenue || 0)} | 
+                            Chi phí: {formatCurrency(item.metadata.costs || 0)} | 
+                            Lãi/Lỗ: {formatCurrency(item.metadata.profit || 0)}
+                          </div>
+                        )}
+                        <p className="text-sm text-gray-700 line-clamp-2">
+                          {item.analysis.substring(0, 200)}...
+                        </p>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <button
+                          onClick={() => handleViewHistory(item)}
+                          className="px-3 py-1 bg-accent text-white rounded-lg hover:bg-accent-dark transition-colors text-sm font-medium"
+                        >
+                          Xem
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Bạn có chắc muốn xóa phân tích này?')) {
+                              handleDeleteHistory(item._id);
+                            }
+                          }}
+                          className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm font-medium"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg p-8 shadow">
+                <EmptyState
+                  illustration="https://res.cloudinary.com/dlstlvjaq/image/upload/v1768242097/giphy_xuodgw.gif"
+                  title="Chưa có lịch sử phân tích"
+                  message="Các phân tích AI sẽ được lưu tự động ở đây"
+                />
+              </div>
+            )}
+          </>
+        )}
       </div>
+
+      {/* History View Modal */}
+      {showHistoryModal && selectedHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Phân tích AI</h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  {new Date(selectedHistory.createdAt).toLocaleString('vi-VN')} | 
+                  {selectedHistory.period === 'monthly' && ' Tháng'}
+                  {selectedHistory.period === 'quarterly' && ' Quý'}
+                  {selectedHistory.period === 'yearly' && ' Năm'}
+                  {selectedHistory.period === 'all' && ' Toàn bộ'} 
+                  {selectedHistory.periodValue && ` ${selectedHistory.periodValue}`}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedHistory.analysis);
+                    showToast.success('Đã sao chép vào clipboard');
+                  }}
+                  className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium"
+                >
+                  📋 Sao chép
+                </button>
+                <button
+                  onClick={() => {
+                    setShowHistoryModal(false);
+                    setSelectedHistory(null);
+                  }}
+                  className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium"
+                >
+                  ✕ Đóng
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="prose prose-sm max-w-none">
+                <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                  {selectedHistory.analysis.split('\n').map((line, idx) => {
+                    if (line.startsWith('##')) {
+                      return (
+                        <h2 key={idx} className="text-xl font-bold text-gray-900 mt-6 mb-3">
+                          {line.replace('##', '').trim()}
+                        </h2>
+                      );
+                    }
+                    if (line.startsWith('**') && line.endsWith('**')) {
+                      return (
+                        <p key={idx} className="font-semibold text-gray-800 mt-3 mb-2">
+                          {line.replace(/\*\*/g, '')}
+                        </p>
+                      );
+                    }
+                    if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+                      return (
+                        <li key={idx} className="ml-4 mb-1">
+                          {line.trim().substring(1).trim()}
+                        </li>
+                      );
+                    }
+                    if (line.trim() === '') {
+                      return <br key={idx} />;
+                    }
+                    return (
+                      <p key={idx} className="mb-2">
+                        {line}
+                      </p>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Form Modal */}
       {showForm && (

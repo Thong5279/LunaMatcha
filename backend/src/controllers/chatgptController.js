@@ -1,4 +1,5 @@
 const axios = require('axios');
+const AnalysisHistory = require('../models/AnalysisHistory');
 
 // OpenAI API configuration
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -225,6 +226,40 @@ const analyzeBusinessData = async (req, res) => {
     // #region agent log
     fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:166',message:'Analysis success',data:{analysisLength:analysis.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
     // #endregion
+    
+    // Auto-save analysis to history
+    try {
+      const { period, analyzeAll, data } = req.body;
+      let periodValue = null;
+      
+      if (!analyzeAll && data?.periodValue) {
+        periodValue = data.periodValue;
+      }
+      
+      // Extract metadata from data if available
+      const metadata = data ? {
+        revenue: data.revenue?.current || 0,
+        costs: data.costs?.total || 0,
+        profit: data.profit?.amount || 0,
+        profitMargin: data.profit?.margin || 0,
+        totalOrders: data.orders?.total || 0,
+        averageOrderValue: data.orders?.averageOrderValue || 0,
+      } : {};
+      
+      await AnalysisHistory.create({
+        analysis,
+        period: period || 'all',
+        periodValue,
+        analyzeAll: analyzeAll || false,
+        metadata,
+      });
+      
+      console.log('[ChatGPT] Analysis saved to history');
+    } catch (saveError) {
+      console.error('[ChatGPT] Error saving analysis to history:', saveError);
+      // Don't fail the request if save fails, just log the error
+    }
+    
     res.json({ analysis });
   } catch (error) {
     console.error('[ChatGPT] Error:', error.response?.data || error.message);
