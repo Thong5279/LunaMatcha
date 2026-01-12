@@ -5,7 +5,7 @@ import { analyticsService } from '../services/analyticsService';
 import CelebrationModal from '../components/CelebrationModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
-import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper } from '../utils/dateHelper';
+import { getCurrentMonth, getCurrentYear } from '../utils/dateHelper';
 import { formatCurrency } from '../utils/formatCurrency';
 import {
   LineChart,
@@ -26,48 +26,34 @@ import {
 const Analytics = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [period, setPeriod] = useState('daily');
-  const [date, setDate] = useState(() => getTodayDate());
+  const [period, setPeriod] = useState('month'); // 'month' | 'quarter' | 'year'
   const [month, setMonth] = useState(() => getCurrentMonth());
+  const [quarter, setQuarter] = useState(1);
   const [year, setYear] = useState(() => getCurrentYear());
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
-  const intervalRef = useRef(null);
 
-  // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
+  // Đảm bảo period mặc định khi component mount
   useEffect(() => {
-    const today = getTodayDate();
     const currentMonth = getCurrentMonth();
     const currentYear = getCurrentYear();
+    const currentQuarter = Math.ceil((new Date().getMonth() + 1) / 3);
     
-    // Chỉ reset nếu đang ở trang analytics và chưa có giá trị
     if (location.pathname === '/analytics') {
-      // Reset về ngày hôm nay nếu đang ở period daily
-      if (period === 'daily') {
-        setDate(today);
-      }
-      // Reset về tháng hiện tại nếu đang ở period monthly
-      if (period === 'monthly') {
+      if (period === 'month') {
         setMonth(currentMonth);
-      }
-      // Reset về năm hiện tại nếu đang ở period yearly
-      if (period === 'yearly') {
+      } else if (period === 'quarter') {
+        setQuarter(currentQuarter);
+        setYear(currentYear);
+      } else if (period === 'year') {
         setYear(currentYear);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Chỉ chạy một lần khi component mount
-
-  const isToday = () => {
-    return isTodayHelper(date);
-  };
-
-  const shouldPoll = () => {
-    return period === 'daily' && isToday() && location.pathname === '/analytics';
-  };
 
   const fetchAnalytics = async (silent = false) => {
     if (!silent) {
@@ -78,25 +64,19 @@ const Analytics = () => {
     try {
       let response;
       switch (period) {
-        case 'daily':
-          response = await analyticsService.getDaily(date);
+        case 'month': {
+          const [yearStr, monthStr] = month.split('-');
+          response = await analyticsService.getMonthly(month, { period: 'month', month: monthStr, year: yearStr });
           break;
-        case 'weekly':
-          const week = getWeekNumber(new Date(date));
-          response = await analyticsService.getWeekly(week);
+        }
+        case 'quarter': {
+          response = await analyticsService.getQuarterly(null, { period: 'quarter', quarter, year });
           break;
-        case 'monthly':
-          response = await analyticsService.getMonthly(month);
+        }
+        case 'year': {
+          response = await analyticsService.getYearly(year, { period: 'year', year });
           break;
-        case 'quarterly':
-          const quarter = `${year}-Q${Math.ceil(
-            (new Date(month + '-01').getMonth() + 1) / 3
-          )}`;
-          response = await analyticsService.getQuarterly(quarter);
-          break;
-        case 'yearly':
-          response = await analyticsService.getYearly(year);
-          break;
+        }
         default:
           return;
       }
@@ -114,65 +94,8 @@ const Analytics = () => {
 
   useEffect(() => {
     fetchAnalytics();
-  }, [period, date, month, year]);
+  }, [period, month, quarter, year]);
 
-  // Real-time polling for daily analytics (today only)
-  useEffect(() => {
-    if (shouldPoll()) {
-      const startPolling = () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-        intervalRef.current = setInterval(() => {
-          fetchAnalytics(true); // Silent refresh
-        }, 10000); // Poll every 10 seconds (reduced from 5s for better mobile performance)
-      };
-
-      // Start polling if tab is visible
-      if (!document.hidden) {
-        startPolling();
-      }
-
-      // Handle visibility change
-      const handleVisibilityChange = () => {
-        if (document.hidden) {
-          // Stop polling when tab is not active
-          if (intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
-        } else if (shouldPoll()) {
-          // Resume polling when tab becomes active
-          startPolling();
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
-      return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      };
-    } else {
-      // Clear interval if conditions not met
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    }
-  }, [period, date, location.pathname, shouldPoll]);
-
-  const getWeekNumber = (date) => {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    const dayNum = d.getUTCDay() || 7;
-    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return `${d.getUTCFullYear()}-W${Math.ceil(
-      ((d - yearStart) / 86400000 + 1) / 7
-    )}`;
-  };
 
   // Memoize chart data for better performance
   const monthlyChartData = useMemo(() => {
@@ -232,8 +155,9 @@ const Analytics = () => {
   // Xử lý khi bấm vào linh vật
   const handleMascotClick = async () => {
     try {
+      const { getTodayDate } = await import('../utils/dateHelper');
       const today = getTodayDate();
-      console.log('🎯 Mascot clicked in Analytics:', { today, currentDate: date });
+      console.log('🎯 Mascot clicked in Analytics:', { today });
       const response = await dailyShiftService.getOrCreate(today);
       const shiftData = response.data;
       const revenue = shiftData.endAmount || 0;
@@ -295,52 +219,66 @@ const Analytics = () => {
 
       <div className="p-4 space-y-4">
         {/* Period Selector */}
-        <div className="bg-white rounded-lg p-4">
+        <div className="bg-white rounded-lg p-4 shadow">
           <div className="flex gap-2 mb-4 overflow-x-auto">
-            {['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].map((p) => (
+            {['month', 'quarter', 'year'].map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${
+                className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                   period === p
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-accent text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {p === 'daily' && 'Ngày'}
-                {p === 'weekly' && 'Tuần'}
-                {p === 'monthly' && 'Tháng'}
-                {p === 'quarterly' && 'Quý'}
-                {p === 'yearly' && 'Năm'}
+                {p === 'month' && 'Tháng'}
+                {p === 'quarter' && 'Quý'}
+                {p === 'year' && 'Năm'}
               </button>
             ))}
           </div>
 
-          {/* Date/Period Inputs */}
-          {period === 'daily' && (
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          )}
-          {period === 'monthly' && (
+          {/* Period Picker */}
+          {period === 'month' && (
             <input
               type="month"
               value={month}
               onChange={(e) => setMonth(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
             />
           )}
-          {period === 'yearly' && (
+          {period === 'quarter' && (
+            <div className="flex gap-2">
+              <select
+                value={quarter}
+                onChange={(e) => setQuarter(parseInt(e.target.value))}
+                className="flex-1 px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                <option value={1}>Quý 1</option>
+                <option value={2}>Quý 2</option>
+                <option value={3}>Quý 3</option>
+                <option value={4}>Quý 4</option>
+              </select>
+              <input
+                type="number"
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                min="2020"
+                max="2099"
+                className="flex-1 px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                placeholder="Năm"
+              />
+            </div>
+          )}
+          {period === 'year' && (
             <input
               type="number"
               value={year}
               onChange={(e) => setYear(e.target.value)}
               min="2020"
               max="2099"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+              placeholder="Năm"
             />
           )}
         </div>
@@ -348,113 +286,276 @@ const Analytics = () => {
         {/* Summary Cards */}
         {data && (
           <>
+            {/* Main Stats: Doanh thu, Chi phí, Lãi */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-white rounded-lg p-4 shadow">
                 <p className="text-sm text-gray-600 mb-1">Doanh thu</p>
                 <p className="text-xl font-bold text-green-600">
-                  {formatCurrency(data.totalRevenue || 0)}
+                  {formatCurrency(data.revenue || data.totalRevenue || 0)} đ
                 </p>
               </div>
               <div className="bg-white rounded-lg p-4 shadow">
-                <p className="text-sm text-gray-600 mb-1">Số đơn</p>
-                <p className="text-xl font-bold">{data.totalOrders || 0}</p>
+                <p className="text-sm text-gray-600 mb-1">Tổng chi phí</p>
+                <p className="text-xl font-bold text-red-600">
+                  {formatCurrency(data.totalCost || 0)} đ
+                </p>
               </div>
             </div>
 
-            {/* Additional Stats for Daily */}
-            {period === 'daily' && (
-              <div className="grid grid-cols-2 gap-3">
-                {data.totalItems !== undefined && (
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <p className="text-sm text-gray-600 mb-1">Số lượng sản phẩm</p>
-                    <p className="text-xl font-bold">{data.totalItems || 0}</p>
-                  </div>
+            {/* Lãi */}
+            <div className="bg-white rounded-lg p-4 shadow border-2 border-accent">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-sm text-gray-600">Lãi ({period === 'month' ? 'tháng' : period === 'quarter' ? 'quý' : 'năm'})</p>
+                {data.profitMargin !== undefined && (
+                  <span className={`text-sm font-medium ${
+                    data.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {data.profitMargin >= 0 ? '+' : ''}{data.profitMargin.toFixed(1)}%
+                  </span>
                 )}
-                {data.totalOrders > 0 && (
-                  <div className="bg-white rounded-lg p-4 shadow">
-                    <p className="text-sm text-gray-600 mb-1">Đơn hàng trung bình</p>
-                    <p className="text-xl font-bold text-accent">
-                      {formatCurrency(Math.round((data.totalRevenue || 0) / data.totalOrders))}
-                    </p>
+              </div>
+              <p className={`text-2xl font-bold ${
+                (data.profit || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
+                {formatCurrency(data.profit || 0)} đ
+              </p>
+            </div>
+
+            {/* Chi phí theo từng loại */}
+            {data.costsByCategory && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Chi phí theo loại</h3>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Nguyên liệu:</span>
+                    <span className="font-semibold text-gray-800">
+                      {formatCurrency(data.costsByCategory.material || 0)} đ
+                    </span>
                   </div>
-                )}
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Nước đá:</span>
+                    <span className="font-semibold text-gray-800">
+                      {formatCurrency(data.costsByCategory.ice || 0)} đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Khác:</span>
+                    <span className="font-semibold text-gray-800">
+                      {formatCurrency(data.costsByCategory.other || 0)} đ
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
 
+            {/* Số đơn */}
+            <div className="bg-white rounded-lg p-4 shadow">
+              <p className="text-sm text-gray-600 mb-1">Số đơn hàng</p>
+              <p className="text-xl font-bold">{data.totalOrders || 0}</p>
+            </div>
+
             {/* Comparison */}
-            {data.revenueChange !== undefined && (
+            {(data.revenueChange !== undefined || data.profitChange !== undefined) && (
               <div className="bg-white rounded-lg p-4 shadow">
-                <p className="text-sm text-gray-600 mb-2">
-                  {period === 'daily' ? 'So với ngày hôm qua' : 'So với kỳ trước'}
+                <p className="text-sm text-gray-600 mb-3 font-semibold">
+                  So với {period === 'month' ? 'tháng' : period === 'quarter' ? 'quý' : 'năm'} trước
                 </p>
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-lg font-bold ${
-                        data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}
-                    >
-                      {data.revenueChange >= 0 ? '+' : ''}
-                      {formatCurrency(data.revenueChange)}
-                    </span>
-                    {data.revenueChangePercent !== undefined && (
-                      <span
-                        className={`text-sm ${
-                          data.revenueChangePercent >= 0
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                        }`}
-                      >
-                        ({data.revenueChangePercent >= 0 ? '+' : ''}
-                        {data.revenueChangePercent.toFixed(1)}%)
-                      </span>
-                    )}
-                  </div>
-                  {period === 'daily' && data.previousDayRevenue !== undefined && (
-                    <p className="text-xs text-gray-500">
-                      Ngày hôm qua: {formatCurrency(data.previousDayRevenue)}
-                    </p>
+                <div className="space-y-3">
+                  {/* Doanh thu so sánh */}
+                  {data.revenueChange !== undefined && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Doanh thu</p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-base font-bold ${
+                            data.revenueChange >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {data.revenueChange >= 0 ? '+' : ''}
+                          {formatCurrency(data.revenueChange)} đ
+                        </span>
+                        {data.revenueChangePercent !== undefined && (
+                          <span
+                            className={`text-sm ${
+                              data.revenueChangePercent >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            ({data.revenueChangePercent >= 0 ? '+' : ''}
+                            {data.revenueChangePercent.toFixed(1)}%)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {/* Lãi so sánh */}
+                  {data.profitChange !== undefined && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Lãi</p>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-base font-bold ${
+                            data.profitChange >= 0 ? 'text-green-600' : 'text-red-600'
+                          }`}
+                        >
+                          {data.profitChange >= 0 ? '+' : ''}
+                          {formatCurrency(data.profitChange)} đ
+                        </span>
+                        {data.profitChangePercent !== undefined && (
+                          <span
+                            className={`text-sm ${
+                              data.profitChangePercent >= 0
+                                ? 'text-green-600'
+                                : 'text-red-600'
+                            }`}
+                          >
+                            ({data.profitChangePercent >= 0 ? '+' : ''}
+                            {data.profitChangePercent.toFixed(1)}%)
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Charts */}
-            {period === 'monthly' && monthlyChartData.length > 0 && (
+            {/* Bar Chart: Doanh thu vs Chi phí vs Lãi */}
+            {data.revenue !== undefined && (
               <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="font-semibold mb-4">Doanh thu theo ngày</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={monthlyChartData} isAnimationActive={false}>
+                <h3 className="font-semibold mb-4">Doanh thu vs Chi phí vs Lãi</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart
+                    data={[
+                      {
+                        name: period === 'month' ? 'Tháng' : period === 'quarter' ? 'Quý' : 'Năm',
+                        DoanhThu: data.revenue || 0,
+                        ChiPhi: data.totalCost || 0,
+                        Lai: data.profit || 0,
+                      },
+                    ]}
+                    isAnimationActive={false}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="day" />
+                    <XAxis dataKey="name" />
                     <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Tooltip
+                      formatter={(value) => formatCurrency(value) + ' đ'}
+                      labelFormatter={() => ''}
+                    />
                     <Legend />
-                    <Bar dataKey="revenue" fill="#10b981" isAnimationActive={false} />
+                    <Bar dataKey="DoanhThu" fill="#10b981" name="Doanh thu" />
+                    <Bar dataKey="ChiPhi" fill="#ef4444" name="Chi phí" />
+                    <Bar dataKey="Lai" fill="#3b82f6" name="Lãi" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             )}
 
-            {period === 'yearly' && yearlyChartData.length > 0 && (
+            {/* Pie Chart: Phân bổ Doanh thu vs Chi phí */}
+            {data.revenue !== undefined && data.totalCost !== undefined && (
               <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="font-semibold mb-4">Doanh thu theo tháng</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <LineChart data={yearlyChartData} isAnimationActive={false}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatCurrency(value)} />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="revenue"
-                      stroke="#10b981"
-                      strokeWidth={2}
+                <h3 className="font-semibold mb-4">Phân bổ Doanh thu vs Chi phí</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Doanh thu', value: data.revenue || 0 },
+                        { name: 'Chi phí', value: data.totalCost || 0 },
+                      ]}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
                       isAnimationActive={false}
-                    />
-                  </LineChart>
+                    >
+                      <Cell fill="#10b981" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value) + ' đ'} />
+                    <Legend />
+                  </PieChart>
                 </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Pie Chart: Phân bổ Chi phí theo loại */}
+            {data.costsByCategory && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-4">Phân bổ Chi phí theo loại</h3>
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: 'Nguyên liệu', value: data.costsByCategory.material || 0 },
+                        { name: 'Nước đá', value: data.costsByCategory.ice || 0 },
+                        { name: 'Khác', value: data.costsByCategory.other || 0 },
+                      ].filter(item => item.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                      isAnimationActive={false}
+                    >
+                      <Cell fill="#7A9A6E" />
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#f59e0b" />
+                    </Pie>
+                    <Tooltip formatter={(value) => formatCurrency(value) + ' đ'} />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            {/* Phân tích đơn giản */}
+            {data.profit !== undefined && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-3 text-gray-800">Phân tích</h3>
+                <div className="space-y-2 text-sm text-gray-700">
+                  {data.profit >= 0 ? (
+                    <p className="text-green-600 font-medium">
+                      ✓ {period === 'month' ? 'Tháng' : period === 'quarter' ? 'Quý' : 'Năm'} này có lãi{' '}
+                      {formatCurrency(data.profit)} đ ({data.profitMargin?.toFixed(1) || 0}%).
+                    </p>
+                  ) : (
+                    <p className="text-red-600 font-medium">
+                      ✗ {period === 'month' ? 'Tháng' : period === 'quarter' ? 'Quý' : 'Năm'} này lỗ{' '}
+                      {formatCurrency(Math.abs(data.profit))} đ.
+                    </p>
+                  )}
+                  {data.profitChange !== undefined && (
+                    <p className="text-gray-600">
+                      So với {period === 'month' ? 'tháng' : period === 'quarter' ? 'quý' : 'năm'} trước:{' '}
+                      {data.profitChange >= 0 ? (
+                        <span className="text-green-600 font-medium">
+                          tăng {formatCurrency(data.profitChange)} đ
+                          {data.profitChangePercent !== undefined &&
+                            ` (${data.profitChangePercent >= 0 ? '+' : ''}${data.profitChangePercent.toFixed(1)}%)`}
+                        </span>
+                      ) : (
+                        <span className="text-red-600 font-medium">
+                          giảm {formatCurrency(Math.abs(data.profitChange))} đ
+                          {data.profitChangePercent !== undefined &&
+                            ` (${data.profitChangePercent.toFixed(1)}%)`}
+                        </span>
+                      )}
+                    </p>
+                  )}
+                  {data.totalCost > 0 && (
+                    <p className="text-gray-600">
+                      Chi phí chiếm{' '}
+                      {((data.totalCost / data.revenue) * 100).toFixed(1)}% doanh thu.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 

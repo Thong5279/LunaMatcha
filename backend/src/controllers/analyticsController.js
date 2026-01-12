@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const Cost = require('../models/Cost');
 
 // Thống kê theo ngày
 const getDailyAnalytics = async (req, res) => {
@@ -235,17 +236,57 @@ const getWeeklyAnalytics = async (req, res) => {
   }
 };
 
+// Helper function: Tính chi phí trong date range
+const getCostsInRange = async (startDate, endDate) => {
+  const costs = await Cost.find({
+    date: { $gte: startDate, $lte: endDate },
+  });
+
+  const totalCost = costs.reduce((sum, cost) => sum + (cost.amount || 0), 0);
+  const costsByCategory = {
+    material: 0,
+    ice: 0,
+    other: 0,
+  };
+
+  costs.forEach((cost) => {
+    if (costsByCategory[cost.category] !== undefined) {
+      costsByCategory[cost.category] += cost.amount || 0;
+    }
+  });
+
+  return { totalCost, costsByCategory };
+};
+
+// Helper function: Tính date range cho quý
+const getQuarterDateRange = (quarter, year) => {
+  const startMonth = (quarter - 1) * 3;
+  const start = new Date(year, startMonth, 1, 0, 0, 0, 0);
+  const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
+  return { start, end };
+};
+
+// Helper function: Tính date range cho năm
+const getYearDateRange = (year) => {
+  const start = new Date(year, 0, 1, 0, 0, 0, 0);
+  const end = new Date(year, 11, 31, 23, 59, 59, 999);
+  return { start, end };
+};
+
 // Thống kê theo tháng
 const getMonthlyAnalytics = async (req, res) => {
   try {
-    const { month } = req.query; // Format: YYYY-MM
-    if (!month) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
-    }
+    const { month, period } = req.query; // Format: YYYY-MM, period: 'month' | 'quarter' | 'year'
+    
+    // Nếu có period parameter, sử dụng endpoint mới
+    if (period === 'month' || !period) {
+      if (!month) {
+        return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
+      }
 
-    const [year, monthNum] = month.split('-').map(Number);
-    const start = new Date(year, monthNum - 1, 1);
-    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+      const [year, monthNum] = month.split('-').map(Number);
+      const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
+      const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -323,6 +364,19 @@ const getMonthlyAnalytics = async (req, res) => {
       return sum;
     }, 0);
 
+    // Tính chi phí trong tháng
+    const { totalCost, costsByCategory } = await getCostsInRange(start, end);
+
+    // Tính lãi
+    const profit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    // Tính chi phí tháng trước để so sánh
+    const prevMonthStart = new Date(year, monthNum - 2, 1, 0, 0, 0, 0);
+    const prevMonthEnd = new Date(year, monthNum - 1, 0, 23, 59, 59, 999);
+    const { totalCost: prevMonthCost } = await getCostsInRange(prevMonthStart, prevMonthEnd);
+    const prevMonthProfit = prevRevenue - prevMonthCost;
+
     // Thống kê theo ngày trong tháng
     const dailyStats = {};
     orders.forEach((order) => {
@@ -336,15 +390,26 @@ const getMonthlyAnalytics = async (req, res) => {
     });
 
     res.json({
+      period: 'month',
+      periodValue: monthNum,
+      year,
       month,
       startDate: start,
       endDate: end,
-      totalRevenue,
+      revenue: totalRevenue,
+      totalCost,
+      costsByCategory,
+      profit,
+      profitMargin,
       totalOrders,
       topProducts,
       previousMonthRevenue: prevRevenue,
+      previousMonthCost: prevMonthCost,
+      previousMonthProfit: prevMonthProfit,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      profitChange: profit - prevMonthProfit,
+      profitChangePercent: prevMonthProfit !== 0 ? ((profit - prevMonthProfit) / Math.abs(prevMonthProfit)) * 100 : (profit > 0 ? 100 : 0),
       dailyStats,
       cashAmount,
       bankTransferAmount,
@@ -357,15 +422,25 @@ const getMonthlyAnalytics = async (req, res) => {
 // Thống kê theo quý
 const getQuarterlyAnalytics = async (req, res) => {
   try {
-    const { quarter } = req.query; // Format: YYYY-Q
-    if (!quarter) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
+    const { quarter, period, year: yearParam } = req.query; // Format: YYYY-Q hoặc period=quarter&quarter=X&year=Y
+    
+    let year, quarterNum;
+    if (period === 'quarter') {
+      // Format mới: period=quarter&quarter=X&year=Y
+      quarterNum = parseInt(quarter);
+      year = parseInt(yearParam);
+      if (!quarterNum || quarterNum < 1 || quarterNum > 4 || !year) {
+        return res.status(400).json({ message: 'Vui lòng cung cấp quý (1-4) và năm hợp lệ' });
+      }
+    } else {
+      // Format cũ: YYYY-Q
+      if (!quarter) {
+        return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
+      }
+      [year, quarterNum] = quarter.split('-Q').map(Number);
     }
 
-    const [year, quarterNum] = quarter.split('-Q').map(Number);
-    const startMonth = (quarterNum - 1) * 3;
-    const start = new Date(year, startMonth, 1);
-    const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
+    const { start, end } = getQuarterDateRange(quarterNum, year);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -443,16 +518,41 @@ const getQuarterlyAnalytics = async (req, res) => {
       return sum;
     }, 0);
 
+    // Tính chi phí trong quý
+    const { totalCost, costsByCategory } = await getCostsInRange(start, end);
+
+    // Tính lãi
+    const profit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    // Tính chi phí quý trước để so sánh
+    const prevQuarterNum = quarterNum === 1 ? 4 : quarterNum - 1;
+    const prevYear = quarterNum === 1 ? year - 1 : year;
+    const { start: prevStart, end: prevEnd } = getQuarterDateRange(prevQuarterNum, prevYear);
+    const { totalCost: prevQuarterCost } = await getCostsInRange(prevStart, prevEnd);
+    const prevQuarterProfit = prevRevenue - prevQuarterCost;
+
     res.json({
-      quarter,
+      period: 'quarter',
+      periodValue: quarterNum,
+      year,
+      quarter: period === 'quarter' ? `${year}-Q${quarterNum}` : quarter,
       startDate: start,
       endDate: end,
-      totalRevenue,
+      revenue: totalRevenue,
+      totalCost,
+      costsByCategory,
+      profit,
+      profitMargin,
       totalOrders,
       topProducts,
       previousQuarterRevenue: prevRevenue,
+      previousQuarterCost: prevQuarterCost,
+      previousQuarterProfit: prevQuarterProfit,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      profitChange: profit - prevQuarterProfit,
+      profitChangePercent: prevQuarterProfit !== 0 ? ((profit - prevQuarterProfit) / Math.abs(prevQuarterProfit)) * 100 : (profit > 0 ? 100 : 0),
       cashAmount,
       bankTransferAmount,
     });
@@ -464,13 +564,14 @@ const getQuarterlyAnalytics = async (req, res) => {
 // Thống kê theo năm
 const getYearlyAnalytics = async (req, res) => {
   try {
-    const { year } = req.query;
-    if (!year) {
-      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY)' });
+    const { year: yearParam, period } = req.query;
+    const year = parseInt(yearParam);
+    
+    if (!year || isNaN(year)) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY) hợp lệ' });
     }
 
-    const start = new Date(year, 0, 1);
-    const end = new Date(year, 11, 31, 23, 59, 59, 999);
+    const { start, end } = getYearDateRange(year);
 
     // Query orders theo orderDate hoặc createdAt (cho orders cũ)
     const orders = await Order.find({
@@ -548,6 +649,18 @@ const getYearlyAnalytics = async (req, res) => {
       return sum;
     }, 0);
 
+    // Tính chi phí trong năm
+    const { totalCost, costsByCategory } = await getCostsInRange(start, end);
+
+    // Tính lãi
+    const profit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+
+    // Tính chi phí năm trước để so sánh
+    const { start: prevStart, end: prevEnd } = getYearDateRange(year - 1);
+    const { totalCost: prevYearCost } = await getCostsInRange(prevStart, prevEnd);
+    const prevYearProfit = prevRevenue - prevYearCost;
+
     // Thống kê theo tháng
     const monthlyStats = {};
     orders.forEach((order) => {
@@ -561,15 +674,25 @@ const getYearlyAnalytics = async (req, res) => {
     });
 
     res.json({
+      period: 'year',
+      periodValue: year,
       year,
       startDate: start,
       endDate: end,
-      totalRevenue,
+      revenue: totalRevenue,
+      totalCost,
+      costsByCategory,
+      profit,
+      profitMargin,
       totalOrders,
       topProducts,
       previousYearRevenue: prevRevenue,
+      previousYearCost: prevYearCost,
+      previousYearProfit: prevYearProfit,
       revenueChange: totalRevenue - prevRevenue,
       revenueChangePercent: prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0,
+      profitChange: profit - prevYearProfit,
+      profitChangePercent: prevYearProfit !== 0 ? ((profit - prevYearProfit) / Math.abs(prevYearProfit)) * 100 : (profit > 0 ? 100 : 0),
       monthlyStats,
       cashAmount,
       bankTransferAmount,

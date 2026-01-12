@@ -11,6 +11,7 @@ import FallingIcons from './components/FallingIcons';
 const Orders = lazy(() => import('./pages/Orders'));
 const Analytics = lazy(() => import('./pages/Analytics'));
 const DailyShift = lazy(() => import('./pages/DailyShift'));
+const Costs = lazy(() => import('./pages/Costs'));
 
 function App() {
   return (
@@ -41,6 +42,14 @@ function App() {
             element={
               <Suspense fallback={<LoadingSkeleton type="page" />}>
                 <DailyShift />
+              </Suspense>
+            } 
+          />
+          <Route 
+            path="/costs" 
+            element={
+              <Suspense fallback={<LoadingSkeleton type="page" />}>
+                <Costs />
               </Suspense>
             } 
           />

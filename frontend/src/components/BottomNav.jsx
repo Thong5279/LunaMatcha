@@ -1,18 +1,18 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { HiHome } from 'react-icons/hi2';
 import { HiClipboardDocumentList } from 'react-icons/hi2';
 import { HiCurrencyDollar } from 'react-icons/hi2';
 import { HiChartBar } from 'react-icons/hi2';
+import { HiCube } from 'react-icons/hi2';
 
 const BottomNav = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
   const navItems = [
-    { path: '/', icon: HiHome, label: 'Trang chủ' },
     { path: '/orders', icon: HiClipboardDocumentList, label: 'Đơn hàng' },
     { path: '/shift', icon: HiCurrencyDollar, label: 'Ca làm việc' },
     { path: '/analytics', icon: HiChartBar, label: 'Thống kê' },
+    { path: '/costs', icon: HiCube, label: 'Chi phí' },
   ];
 
   const isActive = (path) => {

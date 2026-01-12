@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ProductList from '../components/ProductList';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ProgressRing from '../components/ProgressRing';
@@ -14,6 +15,7 @@ const CelebrationModal = lazy(() => import('../components/CelebrationModal'));
 const SettingsModal = lazy(() => import('../components/SettingsModal'));
 
 const Home = () => {
+  const navigate = useNavigate();
   const [isSellMode, setIsSellMode] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showToppingManager, setShowToppingManager] = useState(false);
@@ -88,7 +90,10 @@ const Home = () => {
       >
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center -my-1">
+            <div 
+              onClick={() => navigate('/')}
+              className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center -my-1 cursor-pointer hover:opacity-80 transition-opacity"
+            >
               {/* Logo Luna - ở dưới, crop tròn, kích thước lớn hơn */}
               <img 
                 src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_120,h_120,c_fill,r_max,q_auto,f_auto/v1768207142/LogoLuna_mu9kyh.jpg" 

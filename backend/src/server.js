@@ -62,6 +62,7 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/shifts', require('./routes/dailyShiftRoutes'));
 app.use('/api/recipes', require('./routes/recipeRoutes'));
+app.use('/api/costs', require('./routes/costRoutes'));
 
 const PORT = process.env.PORT || 5005;
 
