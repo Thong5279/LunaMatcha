@@ -88,14 +88,33 @@ const Home = () => {
       >
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
-            <img 
-              src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,r_max,q_auto,f_auto/l_Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss/w_80,h_80,c_fill,g_center,fl_layer_apply/v1768207142/LogoLuna_mu9kyh.jpg" 
-              alt="Luna Matcha" 
-              className="w-10 h-10 rounded-full object-cover"
-              loading="eager"
-              fetchPriority="high"
-              decoding="async"
-            />
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              {/* Logo Luna - ở dưới, crop tròn */}
+              <img 
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_65,h_65,c_fill,r_max,q_auto,f_auto/v1768207142/LogoLuna_mu9kyh.jpg" 
+                alt="Luna Matcha Logo" 
+                className="absolute w-[65%] h-[65%] rounded-full object-cover"
+                style={{ 
+                  top: '50%', 
+                  left: '50%', 
+                  transform: 'translate(-50%, -50%)',
+                  zIndex: 1
+                }}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
+              {/* Khung sakura - overlay lên trên */}
+              <img 
+                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_80,h_80,c_fill,q_auto,f_auto/v1768211982/Pngtree_sakura_border_lantern_avatar_frame_14100111_yq8hss.png" 
+                alt="Sakura Frame" 
+                className="absolute w-full h-full object-contain"
+                style={{ zIndex: 2 }}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
+            </div>
             <h1 className="text-xl font-bold text-accent-dark">Luna Matcha</h1>
           </div>
           <div className="flex items-center">
