@@ -1133,7 +1133,8 @@ const Costs = () => {
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
-                )}
+                  );
+                })()}
 
                 {/* Bar Chart: Revenue vs Costs vs Profit */}
                 {(() => {
