@@ -285,6 +285,12 @@ const getMonthlyAnalytics = async (req, res) => {
       }
 
       const [year, monthNum] = month.split('-').map(Number);
+      
+      // Validate month format
+      if (isNaN(year) || isNaN(monthNum) || monthNum < 1 || monthNum > 12) {
+        return res.status(400).json({ message: 'Định dạng tháng không hợp lệ. Vui lòng sử dụng YYYY-MM' });
+      }
+      
       const start = new Date(year, monthNum - 1, 1, 0, 0, 0, 0);
       const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
 

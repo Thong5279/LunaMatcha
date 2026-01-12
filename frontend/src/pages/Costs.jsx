@@ -204,7 +204,7 @@ const Costs = () => {
   }
 
   return (
-    <div className="min-h-screen bg-primary-light pb-24">
+    <div className="min-h-screen bg-primary-light pb-28">
       {/* Header */}
       <header className="bg-primary shadow-sm sticky top-0 z-10">
         <div className="px-4 py-3 flex items-center gap-3">

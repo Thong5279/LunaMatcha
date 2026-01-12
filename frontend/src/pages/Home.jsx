@@ -82,7 +82,7 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-primary-light pb-24">
+    <div className="min-h-screen bg-primary-light pb-28">
       {/* Header với gradient */}
       <header 
         className="shadow-sm sticky top-0 z-10 transition-all duration-500"
