@@ -5,6 +5,7 @@ import { ToppingProvider } from './contexts/ToppingContext';
 import Home from './pages/Home';
 import BottomNav from './components/BottomNav';
 import LoadingSkeleton from './components/LoadingSkeleton';
+import FallingIcons from './components/FallingIcons';
 
 // Lazy load các pages lớn để giảm initial bundle size
 const Orders = lazy(() => import('./pages/Orders'));
@@ -16,6 +17,7 @@ function App() {
     <ToppingProvider>
       <Router>
         <div className="min-h-screen bg-primary-light">
+        <FallingIcons enabled={true} />
         <Routes>
           <Route path="/" element={<Home />} />
           <Route 
