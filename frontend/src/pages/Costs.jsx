@@ -7,6 +7,7 @@ import showToast from '../utils/toast';
 import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, formatDateForAPI } from '../utils/dateHelper';
 import { formatCurrencyWithUnit, formatCurrency } from '../utils/formatCurrency';
 import ConfirmModal from '../components/ConfirmModal';
+import PasswordModal from '../components/PasswordModal';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import EmptyState from '../components/EmptyState';
 import { HiCube } from 'react-icons/hi2';
@@ -28,7 +29,15 @@ import {
 
 const Costs = () => {
   const navigate = useNavigate();
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('costs_authenticated') === 'true';
+  });
   const [activeTab, setActiveTab] = useState('costs'); // 'costs' | 'profit'
+
+  const handlePasswordSuccess = () => {
+    setIsAuthenticated(true);
+    sessionStorage.setItem('costs_authenticated', 'true');
+  };
   
   // Costs tab state
   const [costs, setCosts] = useState([]);
@@ -1127,6 +1136,18 @@ const Costs = () => {
 
   if (activeTab === 'costs' && loading) {
     return <LoadingSkeleton type="page" />;
+  }
+
+  // Show password modal if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <PasswordModal
+        isOpen={true}
+        onSuccess={handlePasswordSuccess}
+        title="Bảo vệ trang chi phí"
+        message="Vui lòng nhập mật khẩu để truy cập trang chi phí"
+      />
+    );
   }
 
   return (

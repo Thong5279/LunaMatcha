@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { HiChevronLeft, HiArrowPath } from 'react-icons/hi2';
 import { analyticsService } from '../services/analyticsService';
 import CelebrationModal from '../components/CelebrationModal';
+import PasswordModal from '../components/PasswordModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper } from '../utils/dateHelper';
@@ -26,6 +27,9 @@ import {
 const Analytics = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('analytics_authenticated') === 'true';
+  });
   const [period, setPeriod] = useState('daily');
   const [date, setDate] = useState(() => getTodayDate());
   const [month, setMonth] = useState(() => getCurrentMonth());
@@ -36,6 +40,11 @@ const Analytics = () => {
   const [showCelebration, setShowCelebration] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
   const intervalRef = useRef(null);
+
+  const handlePasswordSuccess = () => {
+    setIsAuthenticated(true);
+    sessionStorage.setItem('analytics_authenticated', 'true');
+  };
 
   // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
   useEffect(() => {
@@ -257,6 +266,18 @@ const Analytics = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-gray-500">Đang tải...</div>
       </div>
+    );
+  }
+
+  // Show password modal if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <PasswordModal
+        isOpen={true}
+        onSuccess={handlePasswordSuccess}
+        title="Bảo vệ trang thống kê"
+        message="Vui lòng nhập mật khẩu để truy cập trang thống kê"
+      />
     );
   }
 
