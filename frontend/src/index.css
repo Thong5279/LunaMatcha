@@ -100,6 +100,49 @@ input, select, textarea {
   will-change: transform, opacity;
 }
 
+/* Ripple effect */
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(0);
+  animation: ripple 600ms ease-out;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+/* Bounce slow animation */
+@keyframes bounceSlow {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounceSlow 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Gradient animation */
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
 /* Confetti Animation */
 @keyframes confettiFall {
   0% {

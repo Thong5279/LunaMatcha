@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { HiXMark } from 'react-icons/hi2';
+import ParticleEffect from './ParticleEffect';
+import soundManager from '../utils/soundManager';
 
 const CelebrationModal = ({ revenue, onClose }) => {
   const [showConfetti, setShowConfetti] = useState(true);
@@ -81,6 +83,9 @@ const CelebrationModal = ({ revenue, onClose }) => {
   const celebrationData = getCelebrationData();
 
   useEffect(() => {
+    // Play sound effect khi đạt mốc
+    soundManager.play('milestone');
+    
     // Tự động ẩn confetti sau 3 giây
     const timer = setTimeout(() => {
       setShowConfetti(false);
@@ -102,6 +107,9 @@ const CelebrationModal = ({ revenue, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
+      {/* Particle Effect */}
+      <ParticleEffect duration={3000} particleCount={50} />
+      
       {/* Confetti Effect */}
       {showConfetti && (
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-[101]">

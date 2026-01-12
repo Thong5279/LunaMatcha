@@ -4,11 +4,14 @@ import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
 import OrderReviewModal from './OrderReviewModal';
 import RecipeViewer from './RecipeViewer';
+import AnimatedCounter from './AnimatedCounter';
 import { HiTrash } from 'react-icons/hi2';
 import { useToppings } from '../contexts/ToppingContext';
 import { orderService } from '../services/orderService';
 import showToast from '../utils/toast';
 import { formatCurrencyWithUnit } from '../utils/formatCurrency';
+import { triggerHaptic } from '../utils/hapticFeedback';
+import soundManager from '../utils/soundManager';
 
 const SellMode = ({ onComplete }) => {
   const [cart, setCart] = useState([]);
@@ -26,6 +29,10 @@ const SellMode = ({ onComplete }) => {
   }, []);
 
   const handleAddToCart = useCallback((product, size, quantity, iceType, selectedToppings, note) => {
+    // Haptic feedback và sound effect
+    triggerHaptic('light');
+    soundManager.play('addProduct');
+    
     const price = size === 'small' ? product.priceSmall : product.priceLarge;
     const cartItem = {
       productId: product._id,
@@ -209,7 +216,7 @@ const SellMode = ({ onComplete }) => {
               <div className="flex justify-between items-center mb-1.5">
                 <span className="font-bold text-base">Tổng cộng:</span>
                 <span className="font-bold text-lg text-green-600">
-                  {formatCurrencyWithUnit(totalAmount)}
+                  <AnimatedCounter value={totalAmount} format="currency" />
                 </span>
               </div>
               <button

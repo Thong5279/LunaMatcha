@@ -1,6 +1,7 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, useEffect } from 'react';
 import ProductList from '../components/ProductList';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import ProgressRing from '../components/ProgressRing';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
@@ -10,15 +11,43 @@ const SellMode = lazy(() => import('../components/SellMode'));
 const ProductForm = lazy(() => import('../components/ProductForm'));
 const ToppingManager = lazy(() => import('../components/ToppingManager'));
 const CelebrationModal = lazy(() => import('../components/CelebrationModal'));
+const SettingsModal = lazy(() => import('../components/SettingsModal'));
 
 const Home = () => {
   const [isSellMode, setIsSellMode] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showToppingManager, setShowToppingManager] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
 
-  // Loại bỏ prefetch phức tạp - ProductList và ToppingContext sẽ tự fetch khi cần
+  // Fetch doanh thu để hiển thị progress ring
+  useEffect(() => {
+    const fetchRevenue = async () => {
+      try {
+        const today = getTodayDate();
+        const response = await dailyShiftService.getOrCreate(today);
+        const shiftData = response.data;
+        const revenue = shiftData.endAmount || 0;
+        setTodayRevenue(revenue);
+      } catch (error) {
+        console.error('Lỗi khi lấy doanh thu:', error);
+      }
+    };
+    
+    fetchRevenue();
+    // Refresh mỗi 30 giây
+    const interval = setInterval(fetchRevenue, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Tính gradient color dựa trên doanh thu
+  const getGradientColor = () => {
+    if (todayRevenue < 200000) return 'linear-gradient(135deg, #DEE9CB 0%, #C8D9B5 100%)';
+    if (todayRevenue < 500000) return 'linear-gradient(135deg, #FFE66D 0%, #FFD93D 100%)';
+    if (todayRevenue < 800000) return 'linear-gradient(135deg, #FFA07A 0%, #FF8C69 100%)';
+    return 'linear-gradient(135deg, #FF6B6B 0%, #FF5252 100%)';
+  };
 
   // Xử lý khi bấm vào linh vật
   const handleMascotClick = async () => {
@@ -45,8 +74,11 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-primary-light pb-24">
-      {/* Header */}
-      <header className="bg-primary shadow-sm sticky top-0 z-10">
+      {/* Header với gradient */}
+      <header 
+        className="shadow-sm sticky top-0 z-10 transition-all duration-500"
+        style={{ background: getGradientColor() }}
+      >
         <div className="px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-2">
             <img 
@@ -62,17 +94,19 @@ const Home = () => {
           <div className="flex items-center">
             <button
               onClick={handleMascotClick}
-              className="cursor-pointer hover:scale-110 transition-transform"
+              className="cursor-pointer hover:scale-110 transition-transform relative"
               aria-label="Xem celebration"
             >
-              <img
-                src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_48,h_48,c_fill,q_auto,f_auto/v1766651725/psybirdb1oom_qiqb5y.gif"
-                alt="Mascot"
-                className="w-12 h-12 object-contain"
-                loading="eager"
-                fetchPriority="high"
-                decoding="async"
-              />
+              <ProgressRing revenue={todayRevenue} size={56} strokeWidth={4}>
+                <img
+                  src="https://res.cloudinary.com/dlstlvjaq/image/upload/w_48,h_48,c_fill,q_auto,f_auto/v1766651725/psybirdb1oom_qiqb5y.gif"
+                  alt="Mascot"
+                  className="w-12 h-12 object-contain"
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="async"
+                />
+              </ProgressRing>
             </button>
           </div>
         </div>
@@ -139,6 +173,16 @@ const Home = () => {
           <CelebrationModal
             revenue={todayRevenue}
             onClose={() => setShowCelebration(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
           />
         </Suspense>
       )}

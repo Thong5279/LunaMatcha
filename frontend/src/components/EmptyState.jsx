@@ -1,15 +1,55 @@
 import { HiCube } from 'react-icons/hi2';
 import { HiBeaker } from 'react-icons/hi2';
 
-const EmptyState = ({ icon, title, message, action }) => {
+const EmptyState = ({ icon, title, message, action, illustration }) => {
   const IconComponent = icon || HiCube;
   
+  // Default illustrations cho các loại empty state
+  const defaultIllustrations = {
+    products: '🛍️',
+    orders: '📦',
+    analytics: '📊',
+    default: '✨',
+  };
+  
+  const displayIllustration = illustration || defaultIllustrations.default;
+  
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-4">
-      <IconComponent className="w-16 h-16 text-gray-400 mb-4" />
-      <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
-      <p className="text-sm text-gray-500 text-center mb-4">{message}</p>
-      {action && action}
+    <div className="flex flex-col items-center justify-center py-20 px-4 animate-fadeIn">
+      {/* Illustration với animation */}
+      <div className="mb-6 animate-bounce-slow">
+        {typeof displayIllustration === 'string' ? (
+          <div className="text-8xl mb-2" role="img" aria-label="Empty state illustration">
+            {displayIllustration}
+          </div>
+        ) : (
+          <IconComponent className="w-20 h-20 text-gray-300 mb-4" />
+        )}
+      </div>
+      
+      {/* Title */}
+      <h3 className="text-xl font-bold text-gray-800 mb-3 text-center">{title}</h3>
+      
+      {/* Message */}
+      <p className="text-sm text-gray-500 text-center mb-6 max-w-sm">{message}</p>
+      
+      {/* Action button với animation */}
+      {action && (
+        <div className="animate-slideUp">
+          {typeof action === 'function' ? (
+            <button
+              onClick={action}
+              className="px-6 py-3 bg-accent text-white font-semibold rounded-lg hover:bg-accent-dark transition-all transform hover:scale-105 shadow-md"
+            >
+              {title.includes('sản phẩm') ? 'Thêm sản phẩm đầu tiên' : 
+               title.includes('đơn hàng') ? 'Tạo đơn hàng đầu tiên' : 
+               'Bắt đầu'}
+            </button>
+          ) : (
+            action
+          )}
+        </div>
+      )}
     </div>
   );
 };

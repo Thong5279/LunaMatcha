@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { productService } from '../services/productService';
 import RecipeForm from './RecipeForm';
+import ProgressBar from './ProgressBar';
 import showToast from '../utils/toast';
 
 const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) => {
@@ -13,6 +14,7 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
   });
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [showRecipeForm, setShowRecipeForm] = useState(false);
 
   useEffect(() => {
@@ -46,6 +48,7 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setUploadProgress(0);
 
     try {
       const data = new FormData();
@@ -55,6 +58,16 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
       data.append('description', formData.description);
       if (formData.image) {
         data.append('image', formData.image);
+        // Simulate progress for image upload
+        const progressInterval = setInterval(() => {
+          setUploadProgress((prev) => {
+            if (prev >= 90) {
+              clearInterval(progressInterval);
+              return 90;
+            }
+            return prev + 10;
+          });
+        }, 200);
       }
 
       let result;
@@ -72,10 +85,14 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
         }
       }
 
-      onClose(result.data);
+      setUploadProgress(100);
+      setTimeout(() => {
+        onClose(result.data);
+      }, 300);
     } catch (error) {
       showToast.error(error.response?.data?.message || 'Có lỗi xảy ra');
       console.error(error);
+      setUploadProgress(0);
     } finally {
       setLoading(false);
     }
@@ -162,11 +179,19 @@ const ProductForm = ({ product, onClose, onProductCreated, onProductUpdated }) =
             )}
           </div>
 
+          {/* Progress Bar cho upload ảnh */}
+          {loading && formData.image && uploadProgress > 0 && (
+            <div className="pt-2">
+              <ProgressBar progress={uploadProgress} />
+            </div>
+          )}
+
           <div className="flex gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              disabled={loading}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
             >
               Hủy
             </button>

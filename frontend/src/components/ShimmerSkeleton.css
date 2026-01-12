@@ -1,0 +1,102 @@
+.shimmer-skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 0%,
+    #e0e0e0 50%,
+    #f0f0f0 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Card variant */
+.shimmer-skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shimmer-skeleton-image {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 12px;
+}
+
+.shimmer-skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shimmer-skeleton-line {
+  height: 16px;
+  border-radius: 4px;
+}
+
+.shimmer-skeleton-line-title {
+  height: 20px;
+  width: 75%;
+}
+
+.shimmer-skeleton-line-subtitle {
+  height: 14px;
+  width: 50%;
+}
+
+.shimmer-skeleton-line-short {
+  width: 60%;
+}
+
+/* List variant */
+.shimmer-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shimmer-skeleton-list-item {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Page variant */
+.shimmer-skeleton-page {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Modal variant */
+.shimmer-skeleton-modal {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Default variant */
+.shimmer-skeleton-default {
+  padding: 20px;
+}
+
+/* Tắt animation nếu user prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-skeleton {
+    animation: none;
+    background: #f0f0f0;
+  }
+}
+
