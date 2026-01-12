@@ -140,35 +140,77 @@ const analyzeBusinessData = async (req, res) => {
     console.log('[ChatGPT] Period:', period, 'AnalyzeAll:', analyzeAll);
     
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:135',message:'Before OpenAI API call',data:{period,analyzeAll,promptLength:prompt.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:143',message:'Before OpenAI API call',data:{period,analyzeAll,promptLength:prompt.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
     // #endregion
 
-    // Call OpenAI API
-    const response = await axios.post(
-      OPENAI_API_URL,
-      {
-        model: 'gpt-4o-mini', // Using gpt-4o-mini for cost efficiency, can change to gpt-4o if needed
-        messages: [
+    // Retry logic with exponential backoff for rate limiting
+    const maxRetries = 3;
+    let retryCount = 0;
+    let lastError = null;
+    let response = null;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        // Call OpenAI API
+        response = await axios.post(
+          OPENAI_API_URL,
           {
-            role: 'system',
-            content: 'Bạn là một chuyên gia phân tích kinh doanh với nhiều năm kinh nghiệm trong ngành F&B, đặc biệt là cửa hàng đồ uống. Bạn có khả năng phân tích dữ liệu sâu sắc, đưa ra insights có giá trị và khuyến nghị hành động cụ thể, thực tế.'
+            model: 'gpt-4o-mini', // Using gpt-4o-mini for cost efficiency, can change to gpt-4o if needed
+            messages: [
+              {
+                role: 'system',
+                content: 'Bạn là một chuyên gia phân tích kinh doanh với nhiều năm kinh nghiệm trong ngành F&B, đặc biệt là cửa hàng đồ uống. Bạn có khả năng phân tích dữ liệu sâu sắc, đưa ra insights có giá trị và khuyến nghị hành động cụ thể, thực tế.'
+              },
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            temperature: 0.7,
+            max_tokens: 3000, // Increased for comprehensive analysis
           },
           {
-            role: 'user',
-            content: prompt
+            headers: {
+              'Authorization': `Bearer ${OPENAI_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            timeout: 60000, // 60 seconds timeout
           }
-        ],
-        temperature: 0.7,
-        max_tokens: 3000, // Increased for comprehensive analysis
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        timeout: 60000, // 60 seconds timeout
+        );
+        
+        // Success - break out of retry loop
+        break;
+      } catch (error) {
+        lastError = error;
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:185',message:'OpenAI API call failed',data:{retryCount,status:error.response?.status,errorType:error.response?.data?.error?.type,isRateLimit:error.response?.status===429},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        
+        // Only retry on rate limit (429) errors
+        if (error.response?.status === 429 && retryCount < maxRetries) {
+          retryCount++;
+          // Exponential backoff: 2^retryCount seconds (2s, 4s, 8s)
+          const delay = Math.pow(2, retryCount) * 1000;
+          console.log(`[ChatGPT] Rate limited, retrying in ${delay/1000}s (attempt ${retryCount}/${maxRetries})...`);
+          
+          // #region agent log
+          fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'chatgptController.js:195',message:'Retrying with backoff',data:{retryCount,delay},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue; // Retry
+        } else {
+          // Not a retryable error or max retries reached, throw error
+          throw error;
+        }
       }
-    );
+    }
+    
+    // If we get here without response, throw last error
+    if (!response) {
+      throw lastError || new Error('Failed to call OpenAI API');
+    }
 
     const analysis = response.data.choices[0]?.message?.content;
 

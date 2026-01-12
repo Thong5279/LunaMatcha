@@ -727,6 +727,12 @@ const Costs = () => {
             // #region agent log
             fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:720',message:'Fetching year data',data:{year,requestCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
             // #endregion
+            
+            // Add delay between requests to avoid rate limiting (200ms per request)
+            if (requestCount > 1) {
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            
             const response = await analyticsService.getYearly(year.toString());
             const yearRevenue = response.data?.totalRevenue || 0;
             const yearOrders = response.data?.totalOrders || 0;
@@ -1026,8 +1032,17 @@ const Costs = () => {
   // Run ChatGPT analysis
   const runAnalysis = async () => {
     // #region agent log
-    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1004',message:'runAnalysis entry',data:{analysisPeriod,analyzeAll,analysisMonth,analysisYear,analysisQuarter},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1004',message:'runAnalysis entry',data:{analysisPeriod,analyzeAll,analysisMonth,analysisYear,analysisQuarter,isLoading:analysisLoading},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
     // #endregion
+    
+    // Prevent multiple simultaneous calls
+    if (analysisLoading) {
+      // #region agent log
+      fetch('http://127.0.0.1:7244/ingest/7e442ffd-fe7e-4fd2-8266-a51940c08674',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Costs.jsx:1008',message:'Already loading, skipping',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      return;
+    }
+    
     try {
       setAnalysisLoading(true);
       setAnalysisError(null);
