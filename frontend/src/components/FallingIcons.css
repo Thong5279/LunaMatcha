@@ -12,31 +12,80 @@
 .falling-icon {
   position: absolute;
   top: -50px;
-  font-size: 24px;
   user-select: none;
   pointer-events: none;
-  will-change: transform, opacity;
+  will-change: transform, opacity, filter;
   animation: fall linear forwards;
+  --rotation: 0deg;
+  --drift: 0px;
+  --start-opacity: 0.65;
+  --mid-opacity: 0.75;
 }
 
+/* Fall animation với rotation, drift (swing), và opacity fade */
 @keyframes fall {
   0% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 0.8;
+    transform: translateY(0) translateX(0) rotate(var(--rotation));
+    opacity: var(--start-opacity);
+  }
+  10% {
+    transform: translateY(10vh) translateX(calc(var(--drift) * 0.1 - 5px)) rotate(calc(var(--rotation) + 36deg));
+  }
+  20% {
+    transform: translateY(20vh) translateX(calc(var(--drift) * 0.2 + 5px)) rotate(calc(var(--rotation) + 72deg));
+  }
+  30% {
+    transform: translateY(30vh) translateX(calc(var(--drift) * 0.3 - 5px)) rotate(calc(var(--rotation) + 108deg));
+  }
+  40% {
+    transform: translateY(40vh) translateX(calc(var(--drift) * 0.4 + 5px)) rotate(calc(var(--rotation) + 144deg));
   }
   50% {
-    opacity: 1;
+    transform: translateY(50vh) translateX(calc(var(--drift) * 0.5 - 5px)) rotate(calc(var(--rotation) + 180deg));
+    opacity: var(--mid-opacity);
+  }
+  60% {
+    transform: translateY(60vh) translateX(calc(var(--drift) * 0.6 + 5px)) rotate(calc(var(--rotation) + 216deg));
+  }
+  70% {
+    transform: translateY(70vh) translateX(calc(var(--drift) * 0.7 - 5px)) rotate(calc(var(--rotation) + 252deg));
+  }
+  80% {
+    transform: translateY(80vh) translateX(calc(var(--drift) * 0.8 + 5px)) rotate(calc(var(--rotation) + 288deg));
+  }
+  90% {
+    transform: translateY(90vh) translateX(calc(var(--drift) * 0.9 - 5px)) rotate(calc(var(--rotation) + 324deg));
   }
   100% {
-    transform: translateY(calc(100vh + 50px)) rotate(360deg);
+    transform: translateY(calc(100vh + 50px)) translateX(calc(var(--drift) * 1.5)) rotate(calc(var(--rotation) + 360deg));
     opacity: 0;
+  }
+}
+
+/* Sparkle effect - Hiệu ứng lấp lánh (chỉ filter, không ảnh hưởng transform) */
+.falling-icon.sparkle {
+  animation: fall linear forwards, sparkle 2s ease-in-out infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    filter: brightness(1) drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+  }
+  25% {
+    filter: brightness(1.3) drop-shadow(0 0 4px rgba(255, 255, 255, 0.8));
+  }
+  50% {
+    filter: brightness(1.5) drop-shadow(0 0 6px rgba(255, 255, 255, 1));
+  }
+  75% {
+    filter: brightness(1.3) drop-shadow(0 0 4px rgba(255, 255, 255, 0.8));
   }
 }
 
 /* Tối ưu cho mobile */
 @media (max-width: 768px) {
   .falling-icon {
-    font-size: 20px;
+    /* Font size được set từ JS, không cần override */
   }
 }
 
