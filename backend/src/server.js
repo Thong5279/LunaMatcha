@@ -63,6 +63,7 @@ app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/shifts', require('./routes/dailyShiftRoutes'));
 app.use('/api/recipes', require('./routes/recipeRoutes'));
 app.use('/api/costs', require('./routes/costRoutes'));
+app.use('/api/chatgpt', require('./routes/chatgptRoutes'));
 
 const PORT = process.env.PORT || 5005;
 

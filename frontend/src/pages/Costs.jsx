@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { HiChevronLeft, HiArrowPath, HiPlus, HiPencil, HiTrash } from 'react-icons/hi2';
 import { costService } from '../services/costService';
 import { analyticsService } from '../services/analyticsService';
+import { chatgptService } from '../services/chatgptService';
 import showToast from '../utils/toast';
 import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, formatDateForAPI } from '../utils/dateHelper';
 import { formatCurrencyWithUnit, formatCurrency } from '../utils/formatCurrency';
@@ -32,7 +33,7 @@ const Costs = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     return sessionStorage.getItem('costs_authenticated') === 'true';
   });
-  const [activeTab, setActiveTab] = useState('costs'); // 'costs' | 'profit'
+  const [activeTab, setActiveTab] = useState('costs'); // 'costs' | 'profit' | 'analysis'
 
   const handlePasswordSuccess = () => {
     setIsAuthenticated(true);
@@ -58,6 +59,16 @@ const Costs = () => {
   const [trendsData, setTrendsData] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [advancedAnalysis, setAdvancedAnalysis] = useState(null);
+  
+  // Analysis tab state
+  const [analysisPeriod, setAnalysisPeriod] = useState('monthly'); // 'monthly' | 'quarterly' | 'yearly'
+  const [analysisMonth, setAnalysisMonth] = useState(() => getCurrentMonth());
+  const [analysisQuarter, setAnalysisQuarter] = useState(1);
+  const [analysisYear, setAnalysisYear] = useState(() => getCurrentYear());
+  const [analyzeAll, setAnalyzeAll] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -679,6 +690,347 @@ const Costs = () => {
     return recommendations;
   };
 
+  // Fetch comprehensive data for ChatGPT analysis
+  const fetchAnalysisData = async (period, periodValue, analyzeAll) => {
+    try {
+      setAnalysisLoading(true);
+      setAnalysisError(null);
+      
+      let revenue = 0;
+      let previousRevenue = 0;
+      let costs = 0;
+      let previousCosts = 0;
+      let topProducts = [];
+      let totalOrders = 0;
+      let trendsRevenue = [];
+      let trendsCosts = [];
+      let trendsProfit = [];
+      let costsByCategory = { material: 0, ice: 0, other: 0 };
+      let startDate, endDate;
+      let previousStartDate, previousEndDate;
+      let periodValueForAPI = periodValue;
+
+      if (analyzeAll) {
+        // Fetch all historical data
+        const currentYear = new Date().getFullYear();
+        const startYear = 2020;
+        
+        const allYearsData = [];
+        for (let year = startYear; year <= currentYear; year++) {
+          try {
+            const response = await analyticsService.getYearly(year.toString());
+            const yearRevenue = response.data?.totalRevenue || 0;
+            const yearOrders = response.data?.totalOrders || 0;
+            const yearProducts = response.data?.topProducts || [];
+            
+            allYearsData.push({
+              year,
+              revenue: yearRevenue,
+              orders: yearOrders,
+              products: yearProducts
+            });
+          } catch (error) {
+            console.warn(`Error fetching data for year ${year}:`, error);
+          }
+        }
+        
+        revenue = allYearsData.reduce((sum, d) => sum + d.revenue, 0);
+        totalOrders = allYearsData.reduce((sum, d) => sum + d.orders, 0);
+        
+        const allCostsResponse = await costService.getAll({});
+        const allCosts = Array.isArray(allCostsResponse?.data) ? allCostsResponse.data : [];
+        costs = allCosts.reduce((sum, cost) => sum + (cost.amount || 0), 0);
+        costsByCategory = allCosts.reduce((acc, cost) => {
+          const category = cost.category || 'other';
+          acc[category] = (acc[category] || 0) + (cost.amount || 0);
+          return acc;
+        }, { material: 0, ice: 0, other: 0 });
+        
+        const productMap = {};
+        allYearsData.forEach(yearData => {
+          yearData.products.forEach(product => {
+            if (!productMap[product.productId || product.productName]) {
+              productMap[product.productId || product.productName] = {
+                productName: product.productName,
+                quantity: 0,
+                revenue: 0
+              };
+            }
+            productMap[product.productId || product.productName].quantity += product.quantity || 0;
+            productMap[product.productId || product.productName].revenue += product.revenue || 0;
+          });
+        });
+        topProducts = Object.values(productMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+        
+        trendsRevenue = allYearsData.map(d => d.revenue);
+        trendsCosts = allYearsData.map(() => 0);
+        trendsProfit = allYearsData.map((d, idx) => d.revenue - (trendsCosts[idx] || 0));
+        
+        previousRevenue = allYearsData.length > 1 ? allYearsData[allYearsData.length - 2].revenue : 0;
+        previousCosts = 0;
+      } else {
+        if (period === 'monthly') {
+          const [year, month] = periodValue.split('-').map(Number);
+          startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+          endDate = new Date(year, month, 0, 23, 59, 59, 999);
+          
+          const prevMonth = getPreviousPeriod('monthly', periodValue, null, null);
+          const [prevYear, prevMonthNum] = prevMonth.split('-').map(Number);
+          previousStartDate = new Date(prevYear, prevMonthNum - 1, 1, 0, 0, 0, 0);
+          previousEndDate = new Date(prevYear, prevMonthNum, 0, 23, 59, 59, 999);
+
+          const response = await analyticsService.getMonthly(periodValue);
+          revenue = response.data?.totalRevenue || 0;
+          totalOrders = response.data?.totalOrders || 0;
+          topProducts = response.data?.topProducts || [];
+          
+          const prevResponse = await analyticsService.getMonthly(prevMonth);
+          previousRevenue = prevResponse.data?.totalRevenue || 0;
+        } else if (period === 'quarterly') {
+          const [year, quarterNum] = periodValue.split('-Q').map(Number);
+          const { start, end } = getQuarterStartEnd(year, quarterNum);
+          startDate = start;
+          endDate = end;
+
+          const prev = getPreviousPeriod('quarterly', null, quarterNum, year.toString());
+          const { start: prevStart, end: prevEnd } = getQuarterStartEnd(prev.year, prev.quarter);
+          previousStartDate = prevStart;
+          previousEndDate = prevEnd;
+
+          const quarter = periodValue;
+          const response = await analyticsService.getQuarterly(quarter);
+          revenue = response.data?.totalRevenue || 0;
+          totalOrders = response.data?.totalOrders || 0;
+          topProducts = response.data?.topProducts || [];
+
+          const prevQuarter = `${prev.year}-Q${prev.quarter}`;
+          const prevResponse = await analyticsService.getQuarterly(prevQuarter);
+          previousRevenue = prevResponse.data?.totalRevenue || 0;
+        } else if (period === 'yearly') {
+          const year = parseInt(periodValue);
+          const { start, end } = getYearStartEnd(year);
+          startDate = start;
+          endDate = end;
+
+          const prevYear = getPreviousPeriod('yearly', null, null, periodValue);
+          const { start: prevStart, end: prevEnd } = getYearStartEnd(parseInt(prevYear));
+          previousStartDate = prevStart;
+          previousEndDate = prevEnd;
+
+          const response = await analyticsService.getYearly(periodValue);
+          revenue = response.data?.totalRevenue || 0;
+          totalOrders = response.data?.totalOrders || 0;
+          topProducts = response.data?.topProducts || [];
+
+          const prevResponse = await analyticsService.getYearly(prevYear);
+          previousRevenue = prevResponse.data?.totalRevenue || 0;
+        }
+
+        const startDateStr = formatDateForAPI(startDate);
+        const endDateStr = formatDateForAPI(endDate);
+        const costsResponse = await costService.getAll({
+          startDate: startDateStr,
+          endDate: endDateStr,
+        });
+        
+        let periodCosts = [];
+        if (Array.isArray(costsResponse?.data)) {
+          periodCosts = costsResponse.data;
+        } else if (Array.isArray(costsResponse)) {
+          periodCosts = costsResponse;
+        }
+        
+        costs = periodCosts.reduce((sum, cost) => {
+          const amount = cost?.amount || 0;
+          return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+        }, 0);
+        
+        costsByCategory = periodCosts.reduce((acc, cost) => {
+          const category = cost?.category || 'other';
+          const amount = cost?.amount || 0;
+          const numAmount = typeof amount === 'number' ? amount : parseFloat(amount) || 0;
+          acc[category] = (acc[category] || 0) + numAmount;
+          return acc;
+        }, { material: 0, ice: 0, other: 0 });
+
+        const prevStartDateStr = formatDateForAPI(previousStartDate);
+        const prevEndDateStr = formatDateForAPI(previousEndDate);
+        const prevCostsResponse = await costService.getAll({
+          startDate: prevStartDateStr,
+          endDate: prevEndDateStr,
+        });
+        
+        let prevCosts = [];
+        if (Array.isArray(prevCostsResponse?.data)) {
+          prevCosts = prevCostsResponse.data;
+        } else if (Array.isArray(prevCostsResponse)) {
+          prevCosts = prevCostsResponse;
+        }
+        
+        previousCosts = prevCosts.reduce((sum, cost) => {
+          const amount = cost?.amount || 0;
+          return sum + (typeof amount === 'number' ? amount : parseFloat(amount) || 0);
+        }, 0);
+
+        const trendsPeriods = [];
+        const currentYear = parseInt(analysisYear || new Date().getFullYear());
+        
+        for (let i = 5; i >= 0; i--) {
+          if (period === 'monthly') {
+            const targetDate = new Date(currentYear, new Date().getMonth() - i, 1);
+            const year = targetDate.getFullYear();
+            const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+            trendsPeriods.push({ period: `${year}-${month}`, label: `${month}/${year}` });
+          } else if (period === 'quarterly') {
+            const targetQuarter = Math.floor((new Date().getMonth() - i * 3) / 3) + 1;
+            const targetYear = currentYear;
+            trendsPeriods.push({ period: `${targetYear}-Q${targetQuarter}`, label: `Q${targetQuarter}/${targetYear}` });
+          } else if (period === 'yearly') {
+            trendsPeriods.push({ period: (currentYear - i).toString(), label: (currentYear - i).toString() });
+          }
+        }
+
+        const trends = await Promise.all(
+          trendsPeriods.map(async ({ period: p, label }) => {
+            try {
+              let rev = 0;
+              let cost = 0;
+              let start, end;
+
+              if (period === 'monthly') {
+                const [y, m] = p.split('-').map(Number);
+                start = new Date(y, m - 1, 1, 0, 0, 0, 0);
+                end = new Date(y, m, 0, 23, 59, 59, 999);
+                const response = await analyticsService.getMonthly(p);
+                rev = response.data?.totalRevenue || 0;
+              } else if (period === 'quarterly') {
+                const [y, q] = p.split('-Q').map(Number);
+                const range = getQuarterStartEnd(y, q);
+                start = range.start;
+                end = range.end;
+                const response = await analyticsService.getQuarterly(p);
+                rev = response.data?.totalRevenue || 0;
+              } else if (period === 'yearly') {
+                const range = getYearStartEnd(parseInt(p));
+                start = range.start;
+                end = range.end;
+                const response = await analyticsService.getYearly(p);
+                rev = response.data?.totalRevenue || 0;
+              }
+
+              const costStartStr = formatDateForAPI(start);
+              const costEndStr = formatDateForAPI(end);
+              const costResp = await costService.getAll({
+                startDate: costStartStr,
+                endDate: costEndStr,
+              });
+              
+              let periodCosts = [];
+              if (Array.isArray(costResp?.data)) {
+                periodCosts = costResp.data;
+              }
+              
+              cost = periodCosts.reduce((sum, c) => sum + (c?.amount || 0), 0);
+
+              return {
+                period: label,
+                revenue: rev,
+                costs: cost,
+                profit: rev - cost,
+              };
+            } catch (error) {
+              console.error(`Error fetching trend data for ${p}:`, error);
+              return { period: label, revenue: 0, costs: 0, profit: 0 };
+            }
+          })
+        );
+
+        trendsRevenue = trends.map(t => t.revenue);
+        trendsCosts = trends.map(t => t.costs);
+        trendsProfit = trends.map(t => t.profit);
+      }
+
+      const profit = revenue - costs;
+      const previousProfit = previousRevenue - previousCosts;
+      const profitMargin = revenue > 0 ? ((profit / revenue) * 100) : 0;
+      const revenueChange = revenue - previousRevenue;
+      const revenueChangePercent = previousRevenue > 0 ? ((revenueChange / previousRevenue) * 100) : 0;
+      const averageOrderValue = totalOrders > 0 ? revenue / totalOrders : 0;
+
+      const analysisData = {
+        period: analyzeAll ? 'all' : period,
+        periodValue: analyzeAll ? null : periodValueForAPI,
+        revenue: {
+          current: revenue,
+          previous: previousRevenue,
+          change: revenueChange,
+          changePercent: revenueChangePercent,
+          trends: trendsRevenue
+        },
+        costs: {
+          total: costs,
+          byCategory: costsByCategory,
+          trends: trendsCosts
+        },
+        profit: {
+          amount: profit,
+          margin: profitMargin,
+          trends: trendsProfit
+        },
+        products: {
+          topProducts: topProducts,
+          totalProducts: topProducts.length
+        },
+        orders: {
+          total: totalOrders,
+          averageOrderValue: averageOrderValue,
+          trends: []
+        },
+        trends: {
+          revenue: trendsRevenue,
+          costs: trendsCosts,
+          profit: trendsProfit
+        }
+      };
+
+      return analysisData;
+    } catch (error) {
+      console.error('[Analysis] Error fetching data:', error);
+      throw error;
+    }
+  };
+
+  // Run ChatGPT analysis
+  const runAnalysis = async () => {
+    try {
+      setAnalysisLoading(true);
+      setAnalysisError(null);
+      setAnalysisResult(null);
+
+      let periodValue = '';
+      if (!analyzeAll) {
+        if (analysisPeriod === 'monthly') {
+          periodValue = analysisMonth;
+        } else if (analysisPeriod === 'quarterly') {
+          periodValue = `${analysisYear}-Q${analysisQuarter}`;
+        } else if (analysisPeriod === 'yearly') {
+          periodValue = analysisYear;
+        }
+      }
+
+      const data = await fetchAnalysisData(analysisPeriod, periodValue, analyzeAll);
+
+      const response = await chatgptService.analyze(data, analysisPeriod, analyzeAll);
+      
+      setAnalysisResult(response.data?.analysis || 'Không nhận được kết quả phân tích');
+      setAnalysisLoading(false);
+    } catch (error) {
+      console.error('[Analysis] Error:', error);
+      setAnalysisError(error.response?.data?.message || error.message || 'Lỗi khi phân tích dữ liệu');
+      setAnalysisLoading(false);
+    }
+  };
+
   const fetchProfitData = async () => {
     try {
       setProfitLoading(true);
@@ -1195,6 +1547,16 @@ const Costs = () => {
               }`}
             >
               Lãi/Lỗ
+            </button>
+            <button
+              onClick={() => setActiveTab('analysis')}
+              className={`flex-1 px-4 py-3 text-center font-medium transition-colors ${
+                activeTab === 'analysis'
+                  ? 'text-accent border-b-2 border-accent'
+                  : 'text-gray-600 hover:text-accent'
+              }`}
+            >
+              Phân tích
             </button>
           </div>
         </div>
@@ -2068,6 +2430,217 @@ const Costs = () => {
                 title="Chưa có dữ liệu"
                 message="Chọn thời gian để xem lãi/lỗ"
               />
+            )}
+          </>
+        )}
+
+        {/* Analysis Tab Content */}
+        {activeTab === 'analysis' && (
+          <>
+            {/* Period Selector and Controls */}
+            <div className="bg-white rounded-lg p-4 shadow mb-4">
+              <div className="flex gap-2 mb-4 overflow-x-auto">
+                {['monthly', 'quarterly', 'yearly'].map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setAnalysisPeriod(p)}
+                    disabled={analyzeAll}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                      analysisPeriod === p && !analyzeAll
+                        ? 'bg-accent text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    } ${analyzeAll ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {p === 'monthly' && 'Tháng'}
+                    {p === 'quarterly' && 'Quý'}
+                    {p === 'yearly' && 'Năm'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Period Input */}
+              {!analyzeAll && (
+                <>
+                  {analysisPeriod === 'monthly' && (
+                    <input
+                      type="month"
+                      value={analysisMonth}
+                      onChange={(e) => setAnalysisMonth(e.target.value)}
+                      className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent mb-4"
+                    />
+                  )}
+                  {analysisPeriod === 'quarterly' && (
+                    <div className="flex gap-2 mb-4">
+                      <select
+                        value={analysisQuarter}
+                        onChange={(e) => setAnalysisQuarter(parseInt(e.target.value))}
+                        className="flex-1 px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                      >
+                        <option value={1}>Quý 1</option>
+                        <option value={2}>Quý 2</option>
+                        <option value={3}>Quý 3</option>
+                        <option value={4}>Quý 4</option>
+                      </select>
+                      <input
+                        type="number"
+                        value={analysisYear}
+                        onChange={(e) => setAnalysisYear(e.target.value)}
+                        min="2020"
+                        max="2099"
+                        className="flex-1 px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                        placeholder="Năm"
+                      />
+                    </div>
+                  )}
+                  {analysisPeriod === 'yearly' && (
+                    <input
+                      type="number"
+                      value={analysisYear}
+                      onChange={(e) => setAnalysisYear(e.target.value)}
+                      min="2020"
+                      max="2099"
+                      className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent mb-4"
+                      placeholder="Năm"
+                    />
+                  )}
+                </>
+              )}
+
+              {/* Analyze All Toggle */}
+              <div className="flex items-center gap-2 mb-4">
+                <input
+                  type="checkbox"
+                  id="analyzeAll"
+                  checked={analyzeAll}
+                  onChange={(e) => setAnalyzeAll(e.target.checked)}
+                  className="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
+                />
+                <label htmlFor="analyzeAll" className="text-sm font-medium text-gray-700">
+                  Phân tích toàn bộ dữ liệu lịch sử
+                </label>
+              </div>
+
+              {/* Analyze Button */}
+              <button
+                onClick={runAnalysis}
+                disabled={analysisLoading}
+                className="w-full py-3 bg-accent text-white rounded-lg hover:bg-accent-dark font-semibold transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {analysisLoading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Đang phân tích...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl">🤖</span>
+                    <span>Phân tích bằng AI</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Analysis Results */}
+            {analysisLoading && (
+              <div className="bg-white rounded-lg p-8 shadow">
+                <LoadingSkeleton type="page" />
+                <p className="text-center text-gray-600 mt-4">Đang thu thập dữ liệu và phân tích...</p>
+              </div>
+            )}
+
+            {analysisError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 shadow">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-800 mb-2">Lỗi khi phân tích</h3>
+                    <p className="text-sm text-red-700 mb-3">{analysisError}</p>
+                    <button
+                      onClick={runAnalysis}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                    >
+                      Thử lại
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {analysisResult && !analysisLoading && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span className="text-2xl">📊</span>
+                    Kết quả phân tích AI
+                  </h3>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(analysisResult);
+                      showToast.success('Đã sao chép vào clipboard');
+                    }}
+                    className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    📋 Sao chép
+                  </button>
+                </div>
+                <div className="prose prose-sm max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-700 leading-relaxed">
+                    {analysisResult.split('\n').map((line, idx) => {
+                      // Format markdown-style headers
+                      if (line.startsWith('##')) {
+                        return (
+                          <h2 key={idx} className="text-xl font-bold text-gray-900 mt-6 mb-3">
+                            {line.replace('##', '').trim()}
+                          </h2>
+                        );
+                      }
+                      if (line.startsWith('**') && line.endsWith('**')) {
+                        return (
+                          <p key={idx} className="font-semibold text-gray-800 mt-3 mb-2">
+                            {line.replace(/\*\*/g, '')}
+                          </p>
+                        );
+                      }
+                      if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+                        return (
+                          <li key={idx} className="ml-4 mb-1">
+                            {line.trim().substring(1).trim()}
+                          </li>
+                        );
+                      }
+                      if (line.trim() === '') {
+                        return <br key={idx} />;
+                      }
+                      return (
+                        <p key={idx} className="mb-2">
+                          {line}
+                        </p>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={runAnalysis}
+                    className="w-full py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm font-medium"
+                  >
+                    🔄 Phân tích lại
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!analysisResult && !analysisLoading && !analysisError && (
+              <div className="bg-white rounded-lg p-8 shadow">
+                <EmptyState
+                  illustration="https://res.cloudinary.com/dlstlvjaq/image/upload/v1768242097/giphy_xuodgw.gif"
+                  title="Sẵn sàng phân tích"
+                  message="Chọn thời gian và nhấn 'Phân tích bằng AI' để bắt đầu"
+                />
+              </div>
             )}
           </>
         )}
