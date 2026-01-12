@@ -47,6 +47,8 @@ const Costs = () => {
   const [profitData, setProfitData] = useState(null);
   const [profitLoading, setProfitLoading] = useState(false);
   const [trendsData, setTrendsData] = useState([]);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [advancedAnalysis, setAdvancedAnalysis] = useState(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -394,6 +396,280 @@ const Costs = () => {
     return recommendations;
   };
 
+  // Generate Advanced AI Analysis
+  const generateAdvancedAIAnalysis = (profitData, analyticsData, trendsData) => {
+    if (!profitData) return null;
+
+    const { revenue, costs, profit, profitMargin, profitChange, profitChangePercent, previousRevenue, previousCosts, costsByCategory } = profitData;
+    const totalOrders = analyticsData?.totalOrders || 0;
+    const topProducts = analyticsData?.topProducts || [];
+    
+    // Calculate advanced metrics
+    const aov = calculateAOV(revenue, totalOrders);
+    const costEfficiency = calculateCostEfficiency(revenue, costs);
+    const revenueGrowthRate = calculateGrowthRate(revenue, previousRevenue);
+    const costGrowthRate = calculateGrowthRate(costs, previousCosts);
+    const profitPerOrder = totalOrders > 0 ? profit / totalOrders : 0;
+    
+    // Pattern detection
+    const patterns = identifyPatterns(trendsData);
+    const anomalies = detectAnomalies(trendsData.map(d => ({ value: d.revenue, period: d.period })));
+    
+    // Calculate health score (0-100)
+    let healthScore = 50; // Base score
+    if (profitMargin > 30) healthScore += 20;
+    else if (profitMargin > 15) healthScore += 10;
+    else if (profitMargin < 0) healthScore -= 30;
+    else if (profitMargin < 10) healthScore -= 10;
+    
+    if (revenueGrowthRate > 10) healthScore += 10;
+    else if (revenueGrowthRate < -10) healthScore -= 15;
+    
+    if (costGrowthRate > revenueGrowthRate && revenueGrowthRate > 0) healthScore -= 10;
+    if (costEfficiency > 2) healthScore += 10;
+    else if (costEfficiency < 1.2) healthScore -= 15;
+    
+    healthScore = Math.max(0, Math.min(100, healthScore));
+
+    // Executive Summary
+    const executiveSummary = {
+      healthScore,
+      healthStatus: healthScore >= 70 ? 'excellent' : healthScore >= 50 ? 'good' : healthScore >= 30 ? 'fair' : 'poor',
+      keyMetrics: {
+        revenue,
+        costs,
+        profit,
+        profitMargin,
+        aov,
+        costEfficiency,
+        totalOrders
+      },
+      criticalAlerts: []
+    };
+
+    if (profit < 0) {
+      executiveSummary.criticalAlerts.push({
+        type: 'loss',
+        message: `Đang bị lỗ ${formatCurrency(Math.abs(profit))}. Cần hành động ngay.`,
+        severity: 'critical'
+      });
+    }
+    if (profitMargin < 5 && profitMargin >= 0) {
+      executiveSummary.criticalAlerts.push({
+        type: 'low_margin',
+        message: `Tỷ lệ lãi rất thấp (${profitMargin.toFixed(1)}%).`,
+        severity: 'high'
+      });
+    }
+    if (costGrowthRate > revenueGrowthRate && revenueGrowthRate > 0) {
+      executiveSummary.criticalAlerts.push({
+        type: 'cost_growth',
+        message: `Chi phí tăng nhanh hơn doanh thu (${costGrowthRate.toFixed(1)}% vs ${revenueGrowthRate.toFixed(1)}%).`,
+        severity: 'high'
+      });
+    }
+
+    // Revenue Analysis
+    const revenueAnalysis = {
+      trends: [],
+      aov,
+      growthRate: revenueGrowthRate,
+      growthAcceleration: 0, // Would need more historical data
+      consistency: 'stable', // Simplified
+      productContribution: topProducts.slice(0, 5).map(p => ({
+        name: p.productName,
+        revenue: p.revenue || 0,
+        quantity: p.quantity || 0,
+        contributionPercent: revenue > 0 ? ((p.revenue || 0) / revenue) * 100 : 0
+      }))
+    };
+
+    if (revenueGrowthRate > 10) {
+      revenueAnalysis.trends.push(`Doanh thu tăng mạnh ${revenueGrowthRate.toFixed(1)}% so với kỳ trước`);
+    } else if (revenueGrowthRate < -10) {
+      revenueAnalysis.trends.push(`Doanh thu giảm ${Math.abs(revenueGrowthRate).toFixed(1)}% - cần chú ý`);
+    }
+
+    if (aov > 0) {
+      revenueAnalysis.trends.push(`Giá trị đơn hàng trung bình: ${formatCurrency(aov)}`);
+    }
+
+    // Cost Analysis
+    const costAnalysis = {
+      efficiency: costEfficiency,
+      costPerOrder: totalOrders > 0 ? costs / totalOrders : 0,
+      categoryBreakdown: costsByCategory,
+      optimizationOpportunities: []
+    };
+
+    const categoryPercentages = Object.entries(costsByCategory).map(([cat, amount]) => ({
+      category: cat,
+      amount,
+      percentage: costs > 0 ? (amount / costs) * 100 : 0
+    }));
+
+    // Find largest cost category
+    const largestCategory = categoryPercentages.reduce((max, cat) => 
+      cat.percentage > max.percentage ? cat : max, categoryPercentages[0] || { category: 'material', percentage: 0 }
+    );
+
+    if (largestCategory.percentage > 60) {
+      costAnalysis.optimizationOpportunities.push({
+        category: largestCategory.category,
+        message: `${categoryLabels[largestCategory.category]} chiếm ${largestCategory.percentage.toFixed(1)}% tổng chi phí - có thể tối ưu`,
+        potential: 'high'
+      });
+    }
+
+    // Operational Insights
+    const operationalInsights = {
+      profitability: {
+        profitPerOrder,
+        breakEven: calculateBreakEven(0, costs, revenue, totalOrders),
+        margin: profitMargin
+      },
+      efficiency: {
+        costEfficiency,
+        revenuePerCost: costEfficiency,
+        ordersGrowth: analyticsData?.totalOrders && analyticsData?.previousPeriodOrders ? 
+          calculateGrowthRate(analyticsData.totalOrders, analyticsData.previousPeriodOrders) : 0
+      },
+      benchmarks: {
+        aovBenchmark: aov > 50000 ? 'good' : aov > 30000 ? 'average' : 'low',
+        marginBenchmark: profitMargin > 25 ? 'excellent' : profitMargin > 15 ? 'good' : profitMargin > 5 ? 'fair' : 'poor'
+      }
+    };
+
+    // Trends & Predictions
+    const trendsAnalysis = {
+      patterns: patterns,
+      predictions: projectTrends(trendsData, 2),
+      anomalies: anomalies,
+      seasonal: patterns.seasonal,
+      trend: patterns.trend
+    };
+
+    return {
+      executiveSummary,
+      revenueAnalysis,
+      costAnalysis,
+      operationalInsights,
+      trends: trendsAnalysis
+    };
+  };
+
+  // Generate Strategic Recommendations
+  const generateStrategicRecommendations = (analysis, profitData, analyticsData) => {
+    if (!analysis || !profitData) return { quickWins: [], strategic: [], risks: [] };
+
+    const recommendations = { quickWins: [], strategic: [], risks: [] };
+    const { revenue, costs, profit, profitMargin, costsByCategory } = profitData;
+    const { executiveSummary, revenueAnalysis, costAnalysis, operationalInsights } = analysis;
+    const topProducts = analyticsData?.topProducts || [];
+
+    // Quick Wins
+    if (costAnalysis.optimizationOpportunities.length > 0) {
+      recommendations.quickWins.push({
+        title: `Tối ưu chi phí ${categoryLabels[costAnalysis.optimizationOpportunities[0].category]}`,
+        description: costAnalysis.optimizationOpportunities[0].message,
+        impact: 'medium',
+        effort: 'low',
+        timeframe: '1-2 tuần'
+      });
+    }
+
+    if (profitMargin < 15 && profitMargin >= 0) {
+      recommendations.quickWins.push({
+        title: 'Tăng giá trị đơn hàng trung bình',
+        description: `AOV hiện tại ${formatCurrency(revenueAnalysis.aov)}. Tăng 10% có thể tăng lãi đáng kể.`,
+        impact: 'high',
+        effort: 'low',
+        timeframe: 'Ngay lập tức',
+        actions: [
+          'Khuyến khích khách hàng thêm topping',
+          'Tạo combo giá trị cao',
+          'Upsell sản phẩm bổ sung'
+        ]
+      });
+    }
+
+    // Strategic Recommendations
+    if (revenueAnalysis.growthRate < 0) {
+      recommendations.strategic.push({
+        title: 'Chiến lược tăng trưởng doanh thu',
+        description: `Doanh thu giảm ${Math.abs(revenueAnalysis.growthRate).toFixed(1)}%. Cần chiến lược dài hạn.`,
+        impact: 'high',
+        effort: 'high',
+        timeframe: '1-3 tháng',
+        actions: [
+          'Phân tích sản phẩm bán chạy và tăng cường marketing',
+          'Mở rộng kênh bán hàng',
+          'Cải thiện trải nghiệm khách hàng',
+          'Chạy chương trình khuyến mãi có chiến lược'
+        ]
+      });
+    }
+
+    if (topProducts.length > 0) {
+      const topProduct = topProducts[0];
+      recommendations.strategic.push({
+        title: `Tối ưu hóa sản phẩm "${topProduct.productName}"`,
+        description: `Sản phẩm này đóng góp ${revenueAnalysis.productContribution[0]?.contributionPercent.toFixed(1)}% doanh thu.`,
+        impact: 'medium',
+        effort: 'medium',
+        timeframe: '2-4 tuần',
+        actions: [
+          'Đảm bảo luôn có sẵn sản phẩm này',
+          'Tăng cường marketing cho sản phẩm',
+          'Xem xét tăng giá nếu thị trường cho phép'
+        ]
+      });
+    }
+
+    // Risk Management
+    if (profit < 0) {
+      recommendations.risks.push({
+        title: 'Cảnh báo: Đang bị lỗ',
+        description: `Cần hành động ngay để tránh tổn thất lớn hơn.`,
+        severity: 'critical',
+        actions: [
+          'Xem xét tăng giá bán ngay lập tức',
+          'Giảm chi phí không cần thiết',
+          'Tăng cường bán hàng',
+          'Xem xét tạm dừng hoạt động không sinh lời'
+        ]
+      });
+    }
+
+    if (costAnalysis.efficiency < 1.2) {
+      recommendations.risks.push({
+        title: 'Hiệu quả chi phí thấp',
+        description: `Tỷ lệ doanh thu/chi phí chỉ ${costAnalysis.efficiency.toFixed(2)}. Cần cải thiện.`,
+        severity: 'high',
+        actions: [
+          'Đàm phán lại giá với nhà cung cấp',
+          'Tìm nguồn cung cấp rẻ hơn',
+          'Tối ưu quy trình để giảm lãng phí'
+        ]
+      });
+    }
+
+    if (operationalInsights.profitability.breakEven.breakEvenOrders > analyticsData?.totalOrders * 0.8) {
+      recommendations.risks.push({
+        title: 'Điểm hòa vốn cao',
+        description: `Cần ${operationalInsights.profitability.breakEven.breakEvenOrders} đơn hàng để hòa vốn.`,
+        severity: 'medium',
+        actions: [
+          'Giảm chi phí cố định',
+          'Tăng giá trị đơn hàng trung bình',
+          'Tối ưu chi phí biến đổi'
+        ]
+      });
+    }
+
+    return recommendations;
+  };
+
   const fetchProfitData = async () => {
     try {
       setProfitLoading(true);
@@ -418,10 +694,24 @@ const Costs = () => {
 
         const response = await analyticsService.getMonthly(profitMonth);
         revenue = response.data?.totalRevenue || 0;
+        const totalOrders = response.data?.totalOrders || 0;
+        const topProducts = response.data?.topProducts || [];
         
         // Get previous month revenue
         const prevResponse = await analyticsService.getMonthly(prevMonth);
         previousRevenue = prevResponse.data?.totalRevenue || 0;
+        const prevTotalOrders = prevResponse.data?.totalOrders || 0;
+        
+        // Store analytics data
+        setAnalyticsData({
+          totalOrders,
+          topProducts,
+          paymentMethods: response.data?.cashAmount && response.data?.bankTransferAmount ? {
+            cash: response.data.cashAmount,
+            bankTransfer: response.data.bankTransferAmount
+          } : null,
+          previousPeriodOrders: prevTotalOrders
+        });
       } else if (profitPeriod === 'quarterly') {
         const { start, end } = getQuarterStartEnd(parseInt(profitYear), profitQuarter);
         startDate = start;
@@ -436,11 +726,25 @@ const Costs = () => {
         const quarter = `${profitYear}-Q${profitQuarter}`;
         const response = await analyticsService.getQuarterly(quarter);
         revenue = response.data?.totalRevenue || 0;
-
+        const totalOrders = response.data?.totalOrders || 0;
+        const topProducts = response.data?.topProducts || [];
+        
         // Get previous quarter revenue
         const prevQuarter = `${prev.year}-Q${prev.quarter}`;
         const prevResponse = await analyticsService.getQuarterly(prevQuarter);
         previousRevenue = prevResponse.data?.totalRevenue || 0;
+        const prevTotalOrders = prevResponse.data?.totalOrders || 0;
+        
+        // Store analytics data
+        setAnalyticsData({
+          totalOrders,
+          topProducts,
+          paymentMethods: response.data?.cashAmount && response.data?.bankTransferAmount ? {
+            cash: response.data.cashAmount,
+            bankTransfer: response.data.bankTransferAmount
+          } : null,
+          previousPeriodOrders: prevTotalOrders
+        });
       } else if (profitPeriod === 'yearly') {
         const { start, end } = getYearStartEnd(parseInt(profitYear));
         startDate = start;
@@ -454,10 +758,25 @@ const Costs = () => {
 
         const response = await analyticsService.getYearly(profitYear);
         revenue = response.data?.totalRevenue || 0;
-
+        const totalOrders = response.data?.totalOrders || 0;
+        const topProducts = response.data?.topProducts || [];
+        
         // Get previous year revenue
         const prevResponse = await analyticsService.getYearly(prevYear);
         previousRevenue = prevResponse.data?.totalRevenue || 0;
+        const prevTotalOrders = prevResponse.data?.totalOrders || 0;
+        
+        // Store analytics data
+        setAnalyticsData({
+          totalOrders,
+          topProducts,
+          paymentMethods: response.data?.cashAmount && response.data?.bankTransferAmount ? {
+            cash: response.data.cashAmount,
+            bankTransfer: response.data.bankTransferAmount
+          } : null,
+          monthlyStats: response.data?.monthlyStats || null,
+          previousPeriodOrders: prevTotalOrders
+        });
       }
 
       // Get costs for the period
@@ -1213,8 +1532,228 @@ const Costs = () => {
                   </div>
                 )}
 
-                {/* AI Analysis Section */}
-                {generateAIAnalysis(profitData) && (() => {
+                {/* Enhanced AI Analysis Section */}
+                {advancedAnalysis && (
+                  <div className="space-y-4">
+                    {/* Executive Summary */}
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 shadow border border-blue-200">
+                      <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span className="text-2xl">📊</span>
+                        Tóm tắt điều hành
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3 mb-3">
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-600 mb-1">Điểm sức khỏe</p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1 bg-gray-200 rounded-full h-2">
+                              <div
+                                className={`h-2 rounded-full ${
+                                  advancedAnalysis.executiveSummary.healthScore >= 70
+                                    ? 'bg-green-500'
+                                    : advancedAnalysis.executiveSummary.healthScore >= 50
+                                    ? 'bg-yellow-500'
+                                    : advancedAnalysis.executiveSummary.healthScore >= 30
+                                    ? 'bg-orange-500'
+                                    : 'bg-red-500'
+                                }`}
+                                style={{ width: `${advancedAnalysis.executiveSummary.healthScore}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-bold">
+                              {advancedAnalysis.executiveSummary.healthScore}/100
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {advancedAnalysis.executiveSummary.healthStatus === 'excellent' && 'Xuất sắc'}
+                            {advancedAnalysis.executiveSummary.healthStatus === 'good' && 'Tốt'}
+                            {advancedAnalysis.executiveSummary.healthStatus === 'fair' && 'Trung bình'}
+                            {advancedAnalysis.executiveSummary.healthStatus === 'poor' && 'Cần cải thiện'}
+                          </p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                          <p className="text-xs text-gray-600 mb-1">Giá trị đơn hàng TB</p>
+                          <p className="text-lg font-bold text-green-600">
+                            {formatCurrency(advancedAnalysis.revenueAnalysis.aov || 0)}
+                          </p>
+                        </div>
+                      </div>
+                      {advancedAnalysis.executiveSummary.criticalAlerts.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {advancedAnalysis.executiveSummary.criticalAlerts.map((alert, idx) => (
+                            <div
+                              key={idx}
+                              className={`p-2 rounded ${
+                                alert.severity === 'critical'
+                                  ? 'bg-red-100 border border-red-300'
+                                  : 'bg-orange-100 border border-orange-300'
+                              }`}
+                            >
+                              <p className="text-sm font-medium">{alert.message}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Revenue Deep Dive */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span className="text-xl">💰</span>
+                        Phân tích doanh thu
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Tăng trưởng</p>
+                            <p className={`text-lg font-bold ${
+                              advancedAnalysis.revenueAnalysis.growthRate >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {advancedAnalysis.revenueAnalysis.growthRate >= 0 ? '+' : ''}
+                              {advancedAnalysis.revenueAnalysis.growthRate.toFixed(1)}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Hiệu quả chi phí</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {advancedAnalysis.costAnalysis.efficiency.toFixed(2)}x
+                            </p>
+                          </div>
+                        </div>
+                        {advancedAnalysis.revenueAnalysis.trends.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Xu hướng:</p>
+                            <ul className="space-y-1">
+                              {advancedAnalysis.revenueAnalysis.trends.map((trend, idx) => (
+                                <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
+                                  <span className="text-blue-600 mt-0.5">•</span>
+                                  <span>{trend}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {advancedAnalysis.revenueAnalysis.productContribution.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Đóng góp sản phẩm:</p>
+                            <div className="space-y-2">
+                              {advancedAnalysis.revenueAnalysis.productContribution.slice(0, 3).map((product, idx) => (
+                                <div key={idx} className="flex justify-between items-center text-sm">
+                                  <span className="text-gray-700">{product.name}</span>
+                                  <span className="font-semibold text-gray-900">
+                                    {product.contributionPercent.toFixed(1)}%
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Cost Deep Dive */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span className="text-xl">📉</span>
+                        Phân tích chi phí
+                      </h3>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Chi phí/đơn hàng</p>
+                            <p className="text-lg font-bold text-red-600">
+                              {formatCurrency(advancedAnalysis.costAnalysis.costPerOrder || 0)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-600 mb-1">Tỷ lệ doanh thu/chi phí</p>
+                            <p className="text-lg font-bold text-blue-600">
+                              {advancedAnalysis.costAnalysis.efficiency.toFixed(2)}x
+                            </p>
+                          </div>
+                        </div>
+                        {advancedAnalysis.costAnalysis.optimizationOpportunities.length > 0 && (
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Cơ hội tối ưu:</p>
+                            <ul className="space-y-1">
+                              {advancedAnalysis.costAnalysis.optimizationOpportunities.map((opp, idx) => (
+                                <li key={idx} className="text-sm text-orange-700 flex items-start gap-2">
+                                  <span className="text-orange-600 mt-0.5">💡</span>
+                                  <span>{opp.message}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Operational Insights */}
+                    <div className="bg-white rounded-lg p-4 shadow">
+                      <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                        <span className="text-xl">⚙️</span>
+                        Hiệu quả vận hành
+                      </h3>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">Lãi/đơn hàng</p>
+                          <p className={`text-lg font-bold ${
+                            advancedAnalysis.operationalInsights.profitability.profitPerOrder >= 0
+                              ? 'text-green-600'
+                              : 'text-red-600'
+                          }`}>
+                            {formatCurrency(advancedAnalysis.operationalInsights.profitability.profitPerOrder || 0)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-600 mb-1">Benchmark AOV</p>
+                          <p className={`text-sm font-semibold ${
+                            advancedAnalysis.operationalInsights.benchmarks.aovBenchmark === 'good'
+                              ? 'text-green-600'
+                              : advancedAnalysis.operationalInsights.benchmarks.aovBenchmark === 'average'
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                          }`}>
+                            {advancedAnalysis.operationalInsights.benchmarks.aovBenchmark === 'good' && 'Tốt'}
+                            {advancedAnalysis.operationalInsights.benchmarks.aovBenchmark === 'average' && 'Trung bình'}
+                            {advancedAnalysis.operationalInsights.benchmarks.aovBenchmark === 'low' && 'Thấp'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Trends & Predictions */}
+                    {advancedAnalysis.trends && (
+                      <div className="bg-white rounded-lg p-4 shadow">
+                        <h3 className="font-semibold mb-3 text-gray-800 flex items-center gap-2">
+                          <span className="text-xl">📈</span>
+                          Xu hướng & Dự đoán
+                        </h3>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className="text-gray-600">Xu hướng:</span>
+                            <span className={`font-semibold ${
+                              advancedAnalysis.trends.trend === 'increasing'
+                                ? 'text-green-600'
+                                : advancedAnalysis.trends.trend === 'decreasing'
+                                ? 'text-red-600'
+                                : 'text-gray-600'
+                            }`}>
+                              {advancedAnalysis.trends.trend === 'increasing' && 'Tăng trưởng'}
+                              {advancedAnalysis.trends.trend === 'decreasing' && 'Suy giảm'}
+                              {advancedAnalysis.trends.trend === 'stable' && 'Ổn định'}
+                            </span>
+                          </div>
+                          {advancedAnalysis.trends.seasonal && (
+                            <p className="text-sm text-blue-600">✓ Phát hiện mô hình theo mùa</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Fallback to old AI Analysis if advanced not available */}
+                {!advancedAnalysis && generateAIAnalysis(profitData) && (() => {
                   const analysis = generateAIAnalysis(profitData);
                   return (
                     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 shadow border border-blue-200">
@@ -1302,8 +1841,119 @@ const Costs = () => {
                   </div>
                 )}
 
-                {/* Recommendations */}
-                {generateRecommendations(profitData).length > 0 && (
+                {/* Strategic Recommendations */}
+                {advancedAnalysis && (() => {
+                  const strategicRecs = generateStrategicRecommendations(advancedAnalysis, profitData, analyticsData);
+                  return (
+                    (strategicRecs.quickWins.length > 0 || strategicRecs.strategic.length > 0 || strategicRecs.risks.length > 0) && (
+                      <div className="bg-white rounded-lg p-4 shadow border-l-4 border-yellow-400">
+                        <h3 className="font-semibold mb-4 text-gray-800 flex items-center gap-2">
+                          <span className="text-2xl">💡</span>
+                          Gợi ý chiến lược
+                        </h3>
+                        <div className="space-y-4">
+                          {strategicRecs.quickWins.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-green-700 mb-2">⚡ Quick Wins (Thắng nhanh)</h4>
+                              <div className="space-y-3">
+                                {strategicRecs.quickWins.map((rec, idx) => (
+                                  <div key={idx} className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h5 className="font-semibold text-gray-800">{rec.title}</h5>
+                                      <span className="text-xs text-green-700 bg-green-200 px-2 py-1 rounded">
+                                        {rec.timeframe}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
+                                    {rec.actions && rec.actions.length > 0 && (
+                                      <ul className="space-y-1">
+                                        {rec.actions.map((action, aIdx) => (
+                                          <li key={aIdx} className="text-sm text-gray-600 flex items-start gap-2">
+                                            <span className="text-green-600 mt-0.5">•</span>
+                                            <span>{action}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {strategicRecs.strategic.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-blue-700 mb-2">🎯 Chiến lược dài hạn</h4>
+                              <div className="space-y-3">
+                                {strategicRecs.strategic.map((rec, idx) => (
+                                  <div key={idx} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h5 className="font-semibold text-gray-800">{rec.title}</h5>
+                                      <span className="text-xs text-blue-700 bg-blue-200 px-2 py-1 rounded">
+                                        {rec.timeframe}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
+                                    {rec.actions && rec.actions.length > 0 && (
+                                      <ul className="space-y-1">
+                                        {rec.actions.map((action, aIdx) => (
+                                          <li key={aIdx} className="text-sm text-gray-600 flex items-start gap-2">
+                                            <span className="text-blue-600 mt-0.5">•</span>
+                                            <span>{action}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {strategicRecs.risks.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-red-700 mb-2">⚠️ Quản lý rủi ro</h4>
+                              <div className="space-y-3">
+                                {strategicRecs.risks.map((rec, idx) => (
+                                  <div key={idx} className={`border rounded-lg p-3 ${
+                                    rec.severity === 'critical'
+                                      ? 'bg-red-50 border-red-300'
+                                      : 'bg-orange-50 border-orange-300'
+                                  }`}>
+                                    <div className="flex items-start justify-between mb-2">
+                                      <h5 className="font-semibold text-gray-800">{rec.title}</h5>
+                                      <span className={`text-xs px-2 py-1 rounded ${
+                                        rec.severity === 'critical'
+                                          ? 'bg-red-200 text-red-800'
+                                          : 'bg-orange-200 text-orange-800'
+                                      }`}>
+                                        {rec.severity === 'critical' ? 'Khẩn cấp' : 'Cao'}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-gray-700 mb-2">{rec.description}</p>
+                                    {rec.actions && rec.actions.length > 0 && (
+                                      <ul className="space-y-1">
+                                        {rec.actions.map((action, aIdx) => (
+                                          <li key={aIdx} className="text-sm text-gray-600 flex items-start gap-2">
+                                            <span className={`mt-0.5 ${
+                                              rec.severity === 'critical' ? 'text-red-600' : 'text-orange-600'
+                                            }`}>•</span>
+                                            <span>{action}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  );
+                })()}
+
+                {/* Fallback Recommendations */}
+                {(!advancedAnalysis || !generateStrategicRecommendations(advancedAnalysis, profitData, analyticsData)) && generateRecommendations(profitData).length > 0 && (
                   <div className="bg-white rounded-lg p-4 shadow border-l-4 border-yellow-400">
                     <h3 className="font-semibold mb-4 text-gray-800 flex items-center gap-2">
                       <span className="text-2xl">💡</span>
