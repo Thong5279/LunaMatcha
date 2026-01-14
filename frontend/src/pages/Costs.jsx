@@ -40,6 +40,10 @@ const Costs = () => {
     setIsAuthenticated(true);
     sessionStorage.setItem('costs_authenticated', 'true');
   };
+
+  const handlePasswordCancel = () => {
+    navigate('/');
+  };
   
   // Costs tab state
   const [costs, setCosts] = useState([]);
@@ -1654,6 +1658,7 @@ const Costs = () => {
       <PasswordModal
         isOpen={true}
         onSuccess={handlePasswordSuccess}
+        onCancel={handlePasswordCancel}
         title="Bảo vệ trang chi phí"
         message="Vui lòng nhập mật khẩu để truy cập trang chi phí"
       />
