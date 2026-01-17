@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import ProductList from './ProductList';
 import ToppingSelector from './ToppingSelector';
 import ChangeCalculator from './ChangeCalculator';
@@ -13,7 +13,7 @@ import { formatCurrencyWithUnit } from '../utils/formatCurrency';
 import { triggerHaptic } from '../utils/hapticFeedback';
 import soundManager from '../utils/soundManager';
 
-const SellMode = ({ onComplete }) => {
+const SellMode = ({ onComplete, initialProduct = null, initialSize = null }) => {
   const [cart, setCart] = useState([]);
   const { toppings } = useToppings(); // Sử dụng toppings từ context thay vì fetch lại
   const [showToppingSelector, setShowToppingSelector] = useState(false);
@@ -22,6 +22,7 @@ const SellMode = ({ onComplete }) => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showRecipe, setShowRecipe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const initialProductAddedRef = useRef(false);
 
   const handleProductSelect = useCallback((product) => {
     setSelectedProduct(product);
@@ -55,6 +56,17 @@ const SellMode = ({ onComplete }) => {
     setSelectedProduct(null);
     showToast.success('Đã thêm vào giỏ hàng');
   }, []);
+
+  // Tự động thêm sản phẩm từ gacha khi có initialProduct
+  useEffect(() => {
+    if (initialProduct && initialSize && !initialProductAddedRef.current) {
+      initialProductAddedRef.current = true;
+      // Delay nhỏ để đảm bảo component đã mount xong
+      setTimeout(() => {
+        handleAddToCart(initialProduct, initialSize, 1, 'common', [], '');
+      }, 100);
+    }
+  }, [initialProduct, initialSize, handleAddToCart]);
 
   const handleRemoveFromCart = useCallback((index) => {
     setCart((prevCart) => prevCart.filter((_, i) => i !== index));

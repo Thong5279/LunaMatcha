@@ -411,9 +411,9 @@ const DailyShift = () => {
       </div>
 
       {/* Celebration Modal */}
-      {showCelebration && shift && isToday() && shift.endAmount >= 200000 && (
+      {showCelebration && shift && isToday() && ((shift.cashAmount || 0) + (shift.bankTransferAmount || 0)) >= 200000 && (
         <CelebrationModal
-          revenue={shift.endAmount}
+          revenue={(shift.cashAmount || 0) + (shift.bankTransferAmount || 0)}
           onClose={() => setShowCelebration(false)}
         />
       )}

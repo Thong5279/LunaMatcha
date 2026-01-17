@@ -236,7 +236,7 @@ const Analytics = () => {
       console.log('🎯 Mascot clicked in Analytics:', { today, currentDate: date });
       const response = await dailyShiftService.getOrCreate(today);
       const shiftData = response.data;
-      const revenue = shiftData.endAmount || 0;
+      const revenue = (shiftData.cashAmount || 0) + (shiftData.bankTransferAmount || 0);
 
       console.log('📊 Revenue data:', { revenue, shiftData });
 

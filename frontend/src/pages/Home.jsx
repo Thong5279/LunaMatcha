@@ -1,9 +1,11 @@
-import { useState, lazy, Suspense, useEffect } from 'react';
+import { useState, lazy, Suspense, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ProductList from '../components/ProductList';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ProgressRing from '../components/ProgressRing';
 import { dailyShiftService } from '../services/dailyShiftService';
+import { productService } from '../services/productService';
+import { useGachaTrigger } from '../hooks/useGachaTrigger';
 import showToast from '../utils/toast';
 import { getTodayDate } from '../utils/dateHelper';
 
@@ -13,6 +15,7 @@ const ProductForm = lazy(() => import('../components/ProductForm'));
 const ToppingManager = lazy(() => import('../components/ToppingManager'));
 const CelebrationModal = lazy(() => import('../components/CelebrationModal'));
 const SettingsModal = lazy(() => import('../components/SettingsModal'));
+const GachaModal = lazy(() => import('../components/GachaModal'));
 
 const Home = () => {
   const navigate = useNavigate();
@@ -21,7 +24,10 @@ const Home = () => {
   const [showToppingManager, setShowToppingManager] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGacha, setShowGacha] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
+  const [products, setProducts] = useState([]);
+  const [pendingGachaItem, setPendingGachaItem] = useState(null);
 
   // Fetch doanh thu để hiển thị progress ring
   useEffect(() => {
@@ -30,7 +36,7 @@ const Home = () => {
         const today = getTodayDate();
         const response = await dailyShiftService.getOrCreate(today);
         const shiftData = response.data;
-        const revenue = shiftData.endAmount || 0;
+        const revenue = (shiftData.cashAmount || 0) + (shiftData.bankTransferAmount || 0);
         setTodayRevenue(revenue);
       } catch (error) {
         console.error('Lỗi khi lấy doanh thu:', error);
@@ -42,6 +48,45 @@ const Home = () => {
     const interval = setInterval(fetchRevenue, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch products cho gacha
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const response = await productService.getAll();
+        setProducts(response.data || []);
+      } catch (error) {
+        console.error('Lỗi khi tải danh sách sản phẩm:', error);
+      }
+    };
+    fetchProducts();
+  }, []);
+
+  // Gacha trigger handler
+  const handleGachaTrigger = () => {
+    if (products.length === 0) {
+      showToast.error('Chưa có sản phẩm để gacha');
+      return;
+    }
+    setShowGacha(true);
+  };
+
+  // Sử dụng hook để detect long press và shake
+  useGachaTrigger(handleGachaTrigger, true);
+
+  // Handler để thêm vào giỏ hàng từ gacha
+  const handleGachaAddToCart = (product, size, quantity, iceType, selectedToppings, note) => {
+    // Nếu chưa ở SellMode, chuyển sang SellMode và lưu item pending
+    if (!isSellMode) {
+      setPendingGachaItem({ product, size, quantity, iceType, selectedToppings, note });
+      setIsSellMode(true);
+    } else {
+      // Nếu đã ở SellMode, cần thêm trực tiếp
+      // Tạm thời đóng gacha modal và hiển thị thông báo
+      setShowGacha(false);
+      showToast.info('Vui lòng thêm sản phẩm từ danh sách khi đang ở chế độ bán');
+    }
+  };
 
   // Tính gradient color dựa trên doanh thu - sử dụng các sắc thái xanh lá phù hợp với màu chủ đạo
   const getGradientColor = () => {
@@ -65,7 +110,7 @@ const Home = () => {
       console.log('🎯 Mascot clicked in Home:', { today });
       const response = await dailyShiftService.getOrCreate(today);
       const shiftData = response.data;
-      const revenue = shiftData.endAmount || 0;
+      const revenue = (shiftData.cashAmount || 0) + (shiftData.bankTransferAmount || 0);
 
       console.log('📊 Revenue data:', { revenue, shiftData });
 
@@ -92,6 +137,7 @@ const Home = () => {
           <div className="flex items-center gap-3">
             <div 
               onClick={() => navigate('/')}
+              data-gacha-trigger
               className="relative w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center -my-1 cursor-pointer hover:opacity-80 transition-opacity"
             >
               {/* Logo Luna - ở dưới, crop tròn, kích thước lớn hơn */}
@@ -180,7 +226,14 @@ const Home = () => {
       {/* Content */}
       {isSellMode ? (
         <Suspense fallback={<LoadingSkeleton type="page" />}>
-          <SellMode onComplete={() => setIsSellMode(false)} />
+          <SellMode 
+            onComplete={() => {
+              setIsSellMode(false);
+              setPendingGachaItem(null);
+            }}
+            initialProduct={pendingGachaItem?.product}
+            initialSize={pendingGachaItem?.size}
+          />
         </Suspense>
       ) : (
         <ProductList />
@@ -216,6 +269,18 @@ const Home = () => {
           <SettingsModal
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
+          />
+        </Suspense>
+      )}
+
+      {/* Gacha Modal */}
+      {showGacha && (
+        <Suspense fallback={null}>
+          <GachaModal
+            isOpen={showGacha}
+            onClose={() => setShowGacha(false)}
+            products={products}
+            onAddToCart={handleGachaAddToCart}
           />
         </Suspense>
       )}
