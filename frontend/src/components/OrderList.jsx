@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { orderService } from '../services/orderService';
 import showToast from '../utils/toast';
 import OrderDetail from './OrderDetail';
+import OrderViewModal from './OrderViewModal';
 import LoadingSkeleton from './LoadingSkeleton';
 import EmptyState from './EmptyState';
 import ConfirmModal from './ConfirmModal';
@@ -14,6 +15,8 @@ const OrderList = () => {
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [viewOrder, setViewOrder] = useState(null);
   const [showRefundCalculator, setShowRefundCalculator] = useState(false);
   const [refundOrder, setRefundOrder] = useState(null);
   const [filterDate, setFilterDate] = useState('');
@@ -67,6 +70,11 @@ const OrderList = () => {
   const handleEdit = (order) => {
     setSelectedOrder(order);
     setShowDetail(true);
+  };
+
+  const handleViewDetail = (order) => {
+    setViewOrder(order);
+    setShowViewModal(true);
   };
 
   const handleRefund = (order) => {
@@ -131,7 +139,8 @@ const OrderList = () => {
           orders.map((order) => (
             <div
               key={order._id}
-              className="bg-white rounded-lg shadow-md p-4 space-y-3"
+              className="bg-white rounded-lg shadow-md p-4 space-y-3 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => handleViewDetail(order)}
             >
               <div className="flex justify-between items-start">
                 <div className="flex-1">
@@ -176,19 +185,28 @@ const OrderList = () => {
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleEdit(order)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEdit(order);
+                    }}
                     className="px-4 py-2 bg-secondary text-white text-sm rounded-lg hover:bg-secondary-dark min-h-[44px] transition-colors"
                   >
                     Sửa
                   </button>
                   <button
-                    onClick={() => handleRefund(order)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRefund(order);
+                    }}
                     className="px-4 py-2 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 min-h-[44px] transition-colors"
                   >
                     Thối tiền
                   </button>
                   <button
-                    onClick={() => handleDeleteClick(order._id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(order._id);
+                    }}
                     className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 min-h-[44px] transition-colors"
                   >
                     Xóa
@@ -206,10 +224,13 @@ const OrderList = () => {
                         {' '}• Đá: {item.iceType === 'common' ? 'Chung' : item.iceType === 'separate' ? 'Riêng' : 'Không đá'}
                       </span>
                     )}
-                    {item.toppings.length > 0 && (
+                    {item.toppings && item.toppings.length > 0 && (
                       <span className="text-xs text-gray-400">
                         {' '}
-                        ({item.toppings.map((t) => t.toppingName).join(', ')})
+                        ({item.toppings.map((t) => {
+                          const qty = t.quantity || 1;
+                          return qty > 1 ? `${t.toppingName} x${qty}` : t.toppingName;
+                        }).join(', ')})
                       </span>
                     )}
                   </div>
@@ -232,6 +253,16 @@ const OrderList = () => {
             setShowDetail(false);
             setSelectedOrder(null);
             fetchOrders();
+          }}
+        />
+      )}
+
+      {showViewModal && viewOrder && (
+        <OrderViewModal
+          order={viewOrder}
+          onClose={() => {
+            setShowViewModal(false);
+            setViewOrder(null);
           }}
         />
       )}
