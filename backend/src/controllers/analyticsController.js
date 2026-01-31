@@ -135,7 +135,8 @@ const getWeeklyAnalytics = async (req, res) => {
     }
 
     const [year, weekNum] = week.split('-W').map(Number);
-    // Tuần 1 ISO = tuần chứa ngày 4 tháng 1. Thứ 2 tuần 1 = Jan 4 - (getDay() === 0 ? 6 : getDay() - 1)
+    // Tuần = Thứ 2 (Monday) đến Chủ nhật (Sunday), chuẩn ISO 8601 — không dùng Chủ nhật–Thứ 7
+    // Tuần 1 = tuần chứa ngày 4 tháng 1. Thứ 2 tuần 1 = Jan 4 - (getDay() === 0 ? 6 : getDay() - 1)
     const jan4 = new Date(year, 0, 4);
     const dayOfJan4 = jan4.getDay(); // 0=Chủ nhật, 1=Thứ 2, ...
     const mondayOffset = dayOfJan4 === 0 ? -6 : 1 - dayOfJan4;
@@ -205,7 +206,7 @@ const getWeeklyAnalytics = async (req, res) => {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10);
 
-    // So sánh với tuần trước
+    // So sánh với tuần trước (cùng định nghĩa Thứ 2–Chủ nhật)
     const prevWeekStart = new Date(start);
     prevWeekStart.setDate(prevWeekStart.getDate() - 7);
     const prevWeekEnd = new Date(end);
