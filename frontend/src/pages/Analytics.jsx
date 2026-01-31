@@ -5,7 +5,7 @@ import { analyticsService } from '../services/analyticsService';
 import CelebrationModal from '../components/CelebrationModal';
 import { dailyShiftService } from '../services/dailyShiftService';
 import showToast from '../utils/toast';
-import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper } from '../utils/dateHelper';
+import { getTodayDate, getCurrentMonth, getCurrentYear, isToday as isTodayHelper, formatDateDisplay } from '../utils/dateHelper';
 import { formatCurrency } from '../utils/formatCurrency';
 import {
   LineChart,
@@ -175,6 +175,16 @@ const Analytics = () => {
   };
 
   // Memoize chart data for better performance
+  const weeklyChartData = useMemo(() => {
+    if (!data?.dailyStats || period !== 'weekly') return [];
+    const dayOrder = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+    return dayOrder.map((dayName) => ({
+      day: dayName,
+      revenue: data.dailyStats[dayName]?.revenue ?? 0,
+      orders: data.dailyStats[dayName]?.orders ?? 0,
+    }));
+  }, [data?.dailyStats, period]);
+
   const monthlyChartData = useMemo(() => {
     if (!data?.dailyStats) return [];
     return Object.entries(data.dailyStats).map(([day, stats]) => ({
@@ -325,6 +335,22 @@ const Analytics = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             />
           )}
+          {period === 'weekly' && (
+            <div>
+              <label className="block text-sm text-gray-600 mb-1">Chọn ngày trong tuần</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              {data?.startDate && data?.endDate && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Tuần từ Thứ 2 {formatDateDisplay(data.startDate)} đến Chủ nhật {formatDateDisplay(data.endDate)}
+                </p>
+              )}
+            </div>
+          )}
           {period === 'monthly' && (
             <input
               type="month"
@@ -381,6 +407,30 @@ const Analytics = () => {
               </div>
             )}
 
+            {/* Doanh thu theo ngày trong tuần (Thứ 2 → Chủ nhật) */}
+            {period === 'weekly' && data?.dailyStats && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-3">Doanh thu theo ngày trong tuần</h3>
+                <ul className="space-y-2">
+                  {['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].map((dayName) => (
+                    <li key={dayName} className="flex justify-between items-center py-1 border-b border-gray-100 last:border-0">
+                      <span className="text-gray-700">{dayName}</span>
+                      <span className="text-green-600 font-medium">
+                        {formatCurrency(data.dailyStats[dayName]?.revenue ?? 0)}
+                        <span className="text-gray-500 font-normal text-sm ml-1">
+                          ({data.dailyStats[dayName]?.orders ?? 0} đơn)
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 pt-3 border-t-2 border-gray-200 flex justify-between items-center">
+                  <span className="font-semibold text-gray-800">Tổng doanh thu tuần</span>
+                  <span className="text-lg font-bold text-green-600">{formatCurrency(data.totalRevenue ?? 0)}</span>
+                </div>
+              </div>
+            )}
+
             {/* Comparison */}
             {data.revenueChange !== undefined && (
               <div className="bg-white rounded-lg p-4 shadow">
@@ -420,6 +470,22 @@ const Analytics = () => {
             )}
 
             {/* Charts */}
+            {period === 'weekly' && weeklyChartData.length > 0 && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-4">Doanh thu theo ngày trong tuần</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={weeklyChartData} isAnimationActive={false}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => formatCurrency(value)} />
+                    <Legend />
+                    <Bar dataKey="revenue" fill="#10b981" isAnimationActive={false} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
             {period === 'monthly' && monthlyChartData.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-4">Doanh thu theo ngày</h3>

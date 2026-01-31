@@ -123,7 +123,10 @@ const getDailyAnalytics = async (req, res) => {
   }
 };
 
-// Thống kê theo tuần
+// Tên ngày trong tuần (Thứ 2 → Chủ nhật, ISO)
+const WEEKDAY_NAMES = ['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'];
+
+// Thống kê theo tuần (Thứ 2 → Chủ nhật, chuẩn ISO)
 const getWeeklyAnalytics = async (req, res) => {
   try {
     const { week } = req.query; // Format: YYYY-WW
@@ -132,9 +135,13 @@ const getWeeklyAnalytics = async (req, res) => {
     }
 
     const [year, weekNum] = week.split('-W').map(Number);
-    const start = new Date(year, 0, 1);
-    const daysToAdd = (weekNum - 1) * 7;
-    start.setDate(start.getDate() + daysToAdd - start.getDay());
+    // Tuần 1 ISO = tuần chứa ngày 4 tháng 1. Thứ 2 tuần 1 = Jan 4 - (getDay() === 0 ? 6 : getDay() - 1)
+    const jan4 = new Date(year, 0, 4);
+    const dayOfJan4 = jan4.getDay(); // 0=Chủ nhật, 1=Thứ 2, ...
+    const mondayOffset = dayOfJan4 === 0 ? -6 : 1 - dayOfJan4;
+    const start = new Date(year, 0, 4);
+    start.setDate(start.getDate() + mondayOffset + (weekNum - 1) * 7);
+    start.setHours(0, 0, 0, 0);
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
     end.setHours(23, 59, 59, 999);
@@ -154,6 +161,22 @@ const getWeeklyAnalytics = async (req, res) => {
       return sum + order.totalAmount;
     }, 0);
     const totalOrders = orders.length;
+
+    // Doanh thu theo từng ngày (Thứ 2 → Chủ nhật)
+    const dailyStats = {};
+    WEEKDAY_NAMES.forEach((name) => {
+      dailyStats[name] = { revenue: 0, orders: 0 };
+    });
+    const startMidnight = start.getTime();
+    const oneDay = 86400000;
+    orders.forEach((order) => {
+      const orderTime = (order.orderDate || order.createdAt).getTime();
+      const dayIndex = Math.floor((orderTime - startMidnight) / oneDay);
+      const clamped = Math.max(0, Math.min(6, dayIndex));
+      const dayName = WEEKDAY_NAMES[clamped];
+      dailyStats[dayName].revenue += order.totalAmount && !isNaN(order.totalAmount) ? order.totalAmount : 0;
+      dailyStats[dayName].orders += 1;
+    });
 
     // Top sản phẩm
     const productStats = {};
@@ -223,6 +246,7 @@ const getWeeklyAnalytics = async (req, res) => {
       endDate: end,
       totalRevenue,
       totalOrders,
+      dailyStats,
       topProducts,
       previousWeekRevenue: prevRevenue,
       revenueChange: totalRevenue - prevRevenue,
