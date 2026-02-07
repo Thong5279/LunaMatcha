@@ -6,7 +6,7 @@ import { analyticsService } from '../services/analyticsService';
 import { chatgptService } from '../services/chatgptService';
 import { analysisHistoryService } from '../services/analysisHistoryService';
 import showToast from '../utils/toast';
-import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, formatDateForAPI } from '../utils/dateHelper';
+import { getTodayDate, formatDateDisplay, getCurrentMonth, getCurrentYear, getCurrentWeek, getWeekStartEnd, formatDateForAPI } from '../utils/dateHelper';
 import { formatCurrencyWithUnit, formatCurrency } from '../utils/formatCurrency';
 import ConfirmModal from '../components/ConfirmModal';
 import PasswordModal from '../components/PasswordModal';
@@ -55,7 +55,8 @@ const Costs = () => {
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, costId: null, isLoading: false });
   
   // Profit tab state
-  const [profitPeriod, setProfitPeriod] = useState('monthly'); // 'monthly' | 'quarterly' | 'yearly'
+  const [profitPeriod, setProfitPeriod] = useState('monthly'); // 'weekly' | 'monthly' | 'quarterly' | 'yearly'
+  const [profitWeek, setProfitWeek] = useState(() => getCurrentWeek());
   const [profitMonth, setProfitMonth] = useState(() => getCurrentMonth());
   const [profitQuarter, setProfitQuarter] = useState(1);
   const [profitYear, setProfitYear] = useState(() => getCurrentYear());
@@ -116,7 +117,7 @@ const Costs = () => {
     } else if (activeTab === 'history') {
       fetchAnalysisHistory();
     }
-  }, [profitPeriod, profitMonth, profitQuarter, profitYear, activeTab, historyFilters]);
+  }, [profitPeriod, profitWeek, profitMonth, profitQuarter, profitYear, activeTab, historyFilters]);
 
   const fetchTrendsData = async () => {
     try {
@@ -125,7 +126,13 @@ const Costs = () => {
       
       // Fetch last 6 periods
       for (let i = 0; i < 6; i++) {
-        if (profitPeriod === 'monthly') {
+        if (profitPeriod === 'weekly') {
+          let w = profitWeek;
+          for (let j = 0; j < i; j++) w = getPreviousPeriod('weekly', w, null, null);
+          const y = w.split('-')[0];
+          const ww = w.split('-W')[1] || '01';
+          periods.push({ period: w, label: `Tuần W${ww} ${y}` });
+        } else if (profitPeriod === 'monthly') {
           const [year, month] = profitMonth.split('-').map(Number);
           const targetDate = new Date(year, month - 1 - i, 1);
           const targetMonth = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}`;
@@ -151,7 +158,13 @@ const Costs = () => {
             let costs = 0;
             let startDate, endDate;
 
-            if (profitPeriod === 'monthly') {
+            if (profitPeriod === 'weekly') {
+              const { start, end } = getWeekStartEnd(period);
+              startDate = start;
+              endDate = end;
+              const response = await analyticsService.getWeekly(period);
+              revenue = response.data?.totalRevenue || 0;
+            } else if (profitPeriod === 'monthly') {
               const [year, month] = period.split('-').map(Number);
               startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
               endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -268,7 +281,18 @@ const Costs = () => {
   };
 
   const getPreviousPeriod = (period, month, quarter, year) => {
-    if (period === 'monthly') {
+    if (period === 'weekly') {
+      if (!month || typeof month !== 'string') return getCurrentWeek();
+      const parts = month.split('-W');
+      let y = parseInt(parts[0], 10);
+      let w = parseInt(parts[1], 10) || 1;
+      w -= 1;
+      if (w < 1) {
+        w = 52;
+        y -= 1;
+      }
+      return `${y}-W${String(w).padStart(2, '0')}`;
+    } else if (period === 'monthly') {
       const [y, m] = month.split('-').map(Number);
       const prevMonth = m === 1 ? 12 : m - 1;
       const prevYear = m === 1 ? y - 1 : y;
@@ -1196,7 +1220,7 @@ const Costs = () => {
   const fetchProfitData = async () => {
     try {
       setProfitLoading(true);
-      console.log('[DEBUG] Fetching profit data:', { profitPeriod, profitMonth, profitQuarter, profitYear });
+      console.log('[DEBUG] Fetching profit data:', { profitPeriod, profitWeek, profitMonth, profitQuarter, profitYear });
       
       let revenue = 0;
       let previousRevenue = 0;
@@ -1204,7 +1228,35 @@ const Costs = () => {
       let previousStartDate, previousEndDate;
 
       // Get date range based on period
-      if (profitPeriod === 'monthly') {
+      if (profitPeriod === 'weekly') {
+        const { start, end } = getWeekStartEnd(profitWeek);
+        startDate = start;
+        endDate = end;
+
+        const prevWeek = getPreviousPeriod('weekly', profitWeek, null, null);
+        const { start: prevStart, end: prevEnd } = getWeekStartEnd(prevWeek);
+        previousStartDate = prevStart;
+        previousEndDate = prevEnd;
+
+        const response = await analyticsService.getWeekly(profitWeek);
+        revenue = response.data?.totalRevenue || 0;
+        const totalOrders = response.data?.totalOrders || 0;
+        const topProducts = response.data?.topProducts || [];
+        previousRevenue = response.data?.previousWeekRevenue || 0;
+
+        const prevResponse = await analyticsService.getWeekly(prevWeek);
+        const prevTotalOrders = prevResponse.data?.totalOrders || 0;
+
+        setAnalyticsData({
+          totalOrders,
+          topProducts,
+          paymentMethods: response.data?.cashAmount && response.data?.bankTransferAmount ? {
+            cash: response.data.cashAmount,
+            bankTransfer: response.data.bankTransferAmount
+          } : null,
+          previousPeriodOrders: prevTotalOrders
+        });
+      } else if (profitPeriod === 'monthly') {
         const [year, month] = profitMonth.split('-').map(Number);
         startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
         endDate = new Date(year, month, 0, 23, 59, 59, 999);
@@ -1855,7 +1907,7 @@ const Costs = () => {
             {/* Period Selector */}
             <div className="bg-white rounded-lg p-4 shadow">
               <div className="flex gap-2 mb-4 overflow-x-auto">
-                {['monthly', 'quarterly', 'yearly'].map((p) => (
+                {['weekly', 'monthly', 'quarterly', 'yearly'].map((p) => (
                   <button
                     key={p}
                     onClick={() => setProfitPeriod(p)}
@@ -1865,6 +1917,7 @@ const Costs = () => {
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
+                    {p === 'weekly' && 'Tuần'}
                     {p === 'monthly' && 'Tháng'}
                     {p === 'quarterly' && 'Quý'}
                     {p === 'yearly' && 'Năm'}
@@ -1873,6 +1926,14 @@ const Costs = () => {
               </div>
 
               {/* Period Input */}
+              {profitPeriod === 'weekly' && (
+                <input
+                  type="week"
+                  value={profitWeek}
+                  onChange={(e) => setProfitWeek(e.target.value)}
+                  className="w-full px-3 py-2 border-2 border-accent rounded-lg focus:outline-none focus:ring-2 focus:ring-accent"
+                />
+              )}
               {profitPeriod === 'monthly' && (
                 <input
                   type="month"
@@ -2014,7 +2075,7 @@ const Costs = () => {
                 {/* Bar Chart: Revenue vs Costs vs Profit */}
                 {(() => {
                   const barChartData = [{
-                    name: profitPeriod === 'monthly' ? 'Tháng' : profitPeriod === 'quarterly' ? 'Quý' : 'Năm',
+                    name: profitPeriod === 'weekly' ? 'Tuần' : profitPeriod === 'monthly' ? 'Tháng' : profitPeriod === 'quarterly' ? 'Quý' : 'Năm',
                     DoanhThu: profitData.revenue,
                     ChiPhi: profitData.costs,
                     LaiLo: profitData.profit,
@@ -2559,7 +2620,7 @@ const Costs = () => {
                 {/* Comparison with Previous Period */}
                 <div className="bg-white rounded-lg p-4 shadow">
                   <p className="text-sm text-gray-600 mb-2">
-                    So với {profitPeriod === 'monthly' ? 'tháng trước' : profitPeriod === 'quarterly' ? 'quý trước' : 'năm trước'}
+                    So với {profitPeriod === 'weekly' ? 'tuần trước' : profitPeriod === 'monthly' ? 'tháng trước' : profitPeriod === 'quarterly' ? 'quý trước' : 'năm trước'}
                   </p>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
