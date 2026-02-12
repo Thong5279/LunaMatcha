@@ -9,6 +9,7 @@ import ConfirmModal from './ConfirmModal';
 import ChangeCalculator from './ChangeCalculator';
 import { HiClipboardDocumentList } from 'react-icons/hi2';
 import { HiBanknotes, HiCreditCard } from 'react-icons/hi2';
+import { LuTicket } from 'react-icons/lu';
 
 const OrderList = () => {
   const [orders, setOrders] = useState([]);
@@ -155,6 +156,8 @@ const OrderList = () => {
                           ? 'bg-blue-100 text-blue-700'
                           : order.paymentMethod === 'exact_amount'
                           ? 'bg-green-100 text-green-700'
+                          : order.paymentMethod === 'reward'
+                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-gray-100 text-gray-700'
                       }`}>
                         {order.paymentMethod === 'bank_transfer' ? (
@@ -166,6 +169,11 @@ const OrderList = () => {
                           <>
                             <HiBanknotes className="w-3 h-3" />
                             Đủ tiền
+                          </>
+                        ) : order.paymentMethod === 'reward' ? (
+                          <>
+                            <LuTicket className="w-3 h-3" />
+                            Đổi thưởng
                           </>
                         ) : (
                           <>

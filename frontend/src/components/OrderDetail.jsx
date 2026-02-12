@@ -365,6 +365,7 @@ const OrderDetail = ({ order, onClose }) => {
                 <span className="font-semibold">
                   {order.paymentMethod === 'exact_amount' ? 'Đưa đủ tiền' :
                    order.paymentMethod === 'bank_transfer' ? 'Chuyển khoản' :
+                   order.paymentMethod === 'reward' ? 'Đổi thưởng' :
                    'Tiền mặt'}
                 </span>
               </div>
@@ -377,8 +378,8 @@ const OrderDetail = ({ order, onClose }) => {
                 </span>
               </div>
 
-              {/* Customer Paid - chỉ hiển thị khi tiền mặt */}
-              {(order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && (
+              {/* Customer Paid - chỉ hiển thị khi tiền mặt hoặc đưa đủ tiền (không hiện cho chuyển khoản / đổi thưởng) */}
+              {(order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount' || !order.paymentMethod) && order.paymentMethod !== 'reward' && (
                 <>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Khách đưa:</span>
@@ -404,6 +405,15 @@ const OrderDetail = ({ order, onClose }) => {
                 <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
                   <p className="text-sm text-blue-700">
                     Đơn này thanh toán bằng chuyển khoản, không tính vào tiền mặt trong ca làm việc.
+                  </p>
+                </div>
+              )}
+
+              {/* Reward Note */}
+              {order.paymentMethod === 'reward' && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-2">
+                  <p className="text-sm text-amber-700">
+                    Đơn đổi thưởng, không tính vào tiền mặt.
                   </p>
                 </div>
               )}

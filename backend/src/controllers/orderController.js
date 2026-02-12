@@ -68,6 +68,10 @@ const createOrder = async (req, res) => {
       // Chuyển khoản, không có tiền mặt
       finalCustomerPaid = 0;
       finalChange = 0;
+    } else if (finalPaymentMethod === 'reward') {
+      // Đổi thưởng, không tiền mặt
+      finalCustomerPaid = 0;
+      finalChange = 0;
     }
     // Nếu là 'cash', giữ nguyên giá trị từ req.body
 

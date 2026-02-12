@@ -1,4 +1,5 @@
 import { HiXMark, HiCreditCard, HiBanknotes } from 'react-icons/hi2';
+import { LuTicket } from 'react-icons/lu';
 
 const OrderViewModal = ({ order, onClose }) => {
   if (!order) return null;
@@ -25,6 +26,8 @@ const OrderViewModal = ({ order, onClose }) => {
         return { label: 'Chuyển khoản', icon: HiCreditCard, color: 'blue' };
       case 'exact_amount':
         return { label: 'Đưa đủ tiền', icon: HiBanknotes, color: 'green' };
+      case 'reward':
+        return { label: 'Đổi thưởng', icon: LuTicket, color: 'amber' };
       default:
         return { label: 'Tiền mặt', icon: HiBanknotes, color: 'gray' };
     }
@@ -62,6 +65,7 @@ const OrderViewModal = ({ order, onClose }) => {
               <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium ${
                 paymentInfo.color === 'blue' ? 'bg-blue-100 text-blue-700' :
                 paymentInfo.color === 'green' ? 'bg-green-100 text-green-700' :
+                paymentInfo.color === 'amber' ? 'bg-amber-100 text-amber-700' :
                 'bg-gray-100 text-gray-700'
               }`}>
                 <PaymentIcon className="w-3 h-3" />
@@ -153,8 +157,8 @@ const OrderViewModal = ({ order, onClose }) => {
                 </span>
               </div>
 
-              {/* Chỉ hiển thị thông tin tiền mặt khi không phải chuyển khoản */}
-              {order.paymentMethod !== 'bank_transfer' && (
+              {/* Chỉ hiển thị thông tin tiền mặt khi tiền mặt hoặc đưa đủ tiền */}
+              {(order.paymentMethod === 'cash' || order.paymentMethod === 'exact_amount') && (
                 <>
                   <div className="flex justify-between items-center">
                     <span className="text-sm text-gray-600">Khách đưa:</span>
@@ -178,6 +182,14 @@ const OrderViewModal = ({ order, onClose }) => {
                 <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
                   <p className="text-sm text-blue-700">
                     💳 Đơn hàng này thanh toán bằng chuyển khoản
+                  </p>
+                </div>
+              )}
+
+              {order.paymentMethod === 'reward' && (
+                <div className="bg-amber-50 border border-amber-200 rounded p-2 mt-2">
+                  <p className="text-sm text-amber-700">
+                    🎫 Đơn hàng đổi thưởng
                   </p>
                 </div>
               )}

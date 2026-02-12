@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import showToast from '../utils/toast';
 import { HiXMark } from 'react-icons/hi2';
+import { LuTicket } from 'react-icons/lu';
 
 const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = false }) => {
   const [customerPaid, setCustomerPaid] = useState('');
   const [change, setChange] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash', 'exact_amount', 'bank_transfer'
+  const [paymentMethod, setPaymentMethod] = useState('cash'); // 'cash', 'exact_amount', 'bank_transfer', 'reward'
 
   useEffect(() => {
     calculateChange();
@@ -15,7 +16,7 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
     if (paymentMethod === 'exact_amount') {
       setCustomerPaid(totalAmount.toString());
       setChange(0);
-    } else if (paymentMethod === 'bank_transfer') {
+    } else if (paymentMethod === 'bank_transfer' || paymentMethod === 'reward') {
       setCustomerPaid('0');
       setChange(0);
     } else {
@@ -50,6 +51,12 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
     setChange(0);
   };
 
+  const handleReward = () => {
+    setPaymentMethod('reward');
+    setCustomerPaid('0');
+    setChange(0);
+  };
+
   const handleBackToCash = () => {
     setPaymentMethod('cash');
     setCustomerPaid('');
@@ -69,8 +76,8 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
         return;
       }
     }
-    const paid = paymentMethod === 'exact_amount' ? totalAmount : (paymentMethod === 'bank_transfer' ? 0 : parseFloat(customerPaid) || 0);
-    const finalChange = paymentMethod === 'exact_amount' || paymentMethod === 'bank_transfer' ? 0 : change;
+    const paid = paymentMethod === 'exact_amount' ? totalAmount : (paymentMethod === 'bank_transfer' || paymentMethod === 'reward' ? 0 : parseFloat(customerPaid) || 0);
+    const finalChange = paymentMethod === 'exact_amount' || paymentMethod === 'bank_transfer' || paymentMethod === 'reward' ? 0 : change;
     onConfirm(paid, finalChange, paymentMethod);
   };
 
@@ -104,7 +111,7 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
           {/* Payment Method Quick Buttons */}
           <div className="space-y-2">
             <label className="block text-sm font-medium">Phương thức thanh toán</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={handleExactAmount}
                 className={`py-3 px-4 rounded-lg font-semibold transition-colors ${
@@ -124,6 +131,18 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
                 }`}
               >
                 Chuyển khoản
+              </button>
+              <button
+                onClick={handleReward}
+                className={`py-3 px-4 rounded-lg font-semibold transition-colors flex items-center justify-center ${
+                  paymentMethod === 'reward'
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-primary border-2 border-amber-400 text-amber-700 hover:bg-amber-50'
+                }`}
+                title="Đổi thưởng"
+                aria-label="Đổi thưởng"
+              >
+                <LuTicket className="w-6 h-6" />
               </button>
             </div>
             {paymentMethod !== 'cash' && (
@@ -220,6 +239,16 @@ const ChangeCalculator = ({ totalAmount, onConfirm, onCancel, isSubmitting = fal
                 {formatCurrency(totalAmount)} đ
               </p>
               <p className="text-sm text-gray-600 mt-1">Không tính vào tiền mặt</p>
+            </div>
+          )}
+
+          {paymentMethod === 'reward' && (
+            <div className="rounded-lg p-4 border-2 bg-amber-50 border-amber-300">
+              <p className="text-sm text-gray-600 mb-1">Đổi thưởng</p>
+              <p className="text-2xl font-bold text-amber-600">
+                {formatCurrency(totalAmount)} đ
+              </p>
+              <p className="text-sm text-gray-600 mt-1">Không cần thối tiền</p>
             </div>
           )}
 

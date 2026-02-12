@@ -79,7 +79,7 @@ const orderSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ['cash', 'bank_transfer', 'exact_amount'],
+      enum: ['cash', 'bank_transfer', 'exact_amount', 'reward'],
       default: 'cash',
     },
     orderDate: {
