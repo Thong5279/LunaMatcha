@@ -35,6 +35,8 @@ const Analytics = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [todayRevenue, setTodayRevenue] = useState(0);
+  const [peakHoursData, setPeakHoursData] = useState(null);
+  const [peakHoursLoading, setPeakHoursLoading] = useState(false);
   const intervalRef = useRef(null);
 
   // Đảm bảo ngày mặc định luôn là hôm nay khi component mount lần đầu
@@ -116,6 +118,30 @@ const Analytics = () => {
     fetchAnalytics();
   }, [period, date, month, year]);
 
+  // Fetch peak hours when period is daily and date is set
+  useEffect(() => {
+    if (period !== 'daily' || !date) {
+      setPeakHoursData(null);
+      return;
+    }
+    let cancelled = false;
+    setPeakHoursLoading(true);
+    analyticsService
+      .getPeakHours(date)
+      .then((res) => {
+        if (!cancelled) setPeakHoursData(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setPeakHoursData(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPeakHoursLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [period, date]);
+
   // Real-time polling for daily analytics (today only)
   useEffect(() => {
     if (shouldPoll()) {
@@ -184,6 +210,20 @@ const Analytics = () => {
       orders: data.dailyStats[dayName]?.orders ?? 0,
     }));
   }, [data?.dailyStats, period]);
+
+  const peakHoursChartData = useMemo(() => {
+    if (!peakHoursData?.hourStats) return [];
+    const arr = [];
+    for (let i = 0; i < 24; i++) {
+      const stat = peakHoursData.hourStats[i] || { revenue: 0, orders: 0 };
+      arr.push({
+        hour: `${i}h`,
+        revenue: stat.revenue || 0,
+        orders: stat.orders || 0,
+      });
+    }
+    return arr;
+  }, [peakHoursData]);
 
   const monthlyChartData = useMemo(() => {
     if (!data?.dailyStats) return [];
@@ -469,18 +509,56 @@ const Analytics = () => {
               </div>
             )}
 
+            {/* Peak hours (daily only) */}
+            {period === 'daily' && (
+              <div className="bg-white rounded-lg p-4 shadow">
+                <h3 className="font-semibold mb-1">Khung giờ bán đắt nhất</h3>
+                <p className="text-sm text-gray-500 mb-4">Theo ngày {formatDateDisplay(date)}</p>
+                {peakHoursLoading ? (
+                  <div className="h-[220px] flex items-center justify-center text-gray-500">Đang tải...</div>
+                ) : peakHoursChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={peakHoursChartData} isAnimationActive={false}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="hour" />
+                      <YAxis />
+                      <Tooltip
+                        formatter={(value) => formatCurrency(value)}
+                        labelFormatter={(label) => `${label}`}
+                      />
+                      <Bar dataKey="revenue" fill="#7A9A6E" isAnimationActive={false}>
+                        {peakHoursChartData.map((entry, index) => {
+                          const maxRev = Math.max(...peakHoursChartData.map((d) => d.revenue));
+                          const isPeak = entry.revenue === maxRev && maxRev > 0;
+                          return <Cell key={index} fill={isPeak ? '#6A8A5E' : '#7A9A6E'} />;
+                        })}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-[220px] flex items-center justify-center text-gray-500">Chưa có dữ liệu theo giờ</div>
+                )}
+              </div>
+            )}
+
             {/* Charts */}
             {period === 'weekly' && weeklyChartData.length > 0 && (
               <div className="bg-white rounded-lg p-4 shadow">
-                <h3 className="font-semibold mb-4">Doanh thu theo ngày trong tuần</h3>
-                <ResponsiveContainer width="100%" height={200}>
+                <h3 className="font-semibold mb-4">Ngày bán đắt nhất trong tuần</h3>
+                <ResponsiveContainer width="100%" height={230}>
                   <BarChart data={weeklyChartData} isAnimationActive={false}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="day" />
                     <YAxis />
                     <Tooltip formatter={(value) => formatCurrency(value)} />
                     <Legend />
-                    <Bar dataKey="revenue" fill="#10b981" isAnimationActive={false} />
+                    <Bar dataKey="revenue" fill="#7A9A6E" isAnimationActive={false}>
+                      {weeklyChartData.map((entry, index) => {
+                        const maxRevenue = Math.max(...weeklyChartData.map((d) => d.revenue));
+                        const isPeak = entry.revenue === maxRevenue && maxRevenue > 0;
+                        return <Cell key={index} fill={isPeak ? '#6A8A5E' : '#7A9A6E'} />;
+                      })}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
