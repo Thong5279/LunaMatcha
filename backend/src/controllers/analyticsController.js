@@ -605,6 +605,8 @@ const getYearlyAnalytics = async (req, res) => {
 };
 
 // Helper: tính thống kê theo khung giờ cho khoảng thời gian bất kỳ
+const BUSINESS_TZ_OFFSET_HOURS = 7; // Asia/Ho_Chi_Minh (UTC+7)
+
 const computeHourStats = async (start, end) => {
   // Query orders theo orderDate hoặc createdAt (cho orders cũ)
   const orders = await Order.find({
@@ -620,11 +622,11 @@ const computeHourStats = async (start, end) => {
   }
 
   orders.forEach((order) => {
-    // Dùng thời gian đặt hàng thực tế (createdAt) để tính giờ, fallback về orderDate cho đơn cũ
+    // Dùng thời gian đặt hàng thực tế (createdAt) theo múi giờ Việt Nam, fallback về orderDate cho đơn cũ
     const orderTime = order.createdAt || order.orderDate;
     if (!orderTime) return;
-    const hour = orderTime.getHours();
-    if (hour < 0 || hour > 23) return;
+    const utcHour = orderTime.getUTCHours();
+    const hour = (utcHour + BUSINESS_TZ_OFFSET_HOURS + 24) % 24;
     const amount = !order.totalAmount || isNaN(order.totalAmount) ? 0 : order.totalAmount;
     hourStats[hour].revenue += amount;
     hourStats[hour].orders += 1;
