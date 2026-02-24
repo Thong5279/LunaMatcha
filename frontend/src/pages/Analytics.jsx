@@ -225,6 +225,22 @@ const Analytics = () => {
     return arr;
   }, [peakHoursData]);
 
+  const bestHourInfo = useMemo(() => {
+    if (!peakHoursChartData.length) return null;
+    let best = peakHoursChartData[0];
+    peakHoursChartData.forEach((item) => {
+      if (item.orders > best.orders) {
+        best = item;
+      }
+    });
+    if (!best || best.orders <= 0) return null;
+    return {
+      hour: best.hour,
+      orders: best.orders,
+      revenue: best.revenue,
+    };
+  }, [peakHoursChartData]);
+
   const monthlyChartData = useMemo(() => {
     if (!data?.dailyStats) return [];
     return Object.entries(data.dailyStats).map(([day, stats]) => ({
@@ -300,6 +316,20 @@ const Analytics = () => {
       console.error('Lỗi khi lấy dữ liệu doanh thu:', error);
       showToast.error('Lỗi khi tải dữ liệu');
     }
+  };
+
+  const renderPeakHoursTooltip = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) {
+      return null;
+    }
+    const dataPoint = payload[0].payload;
+    return (
+      <div className="rounded bg-white p-2 shadow text-xs text-gray-700">
+        <p className="font-semibold mb-1">{label}</p>
+        <p>Số đơn: {dataPoint.orders}</p>
+        <p>Doanh thu: {formatCurrency(dataPoint.revenue)}</p>
+      </div>
+    );
   };
 
   if (loading) {
@@ -513,7 +543,14 @@ const Analytics = () => {
             {period === 'daily' && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-1">Khung giờ bán đắt nhất</h3>
-                <p className="text-sm text-gray-500 mb-4">Theo ngày {formatDateDisplay(date)}</p>
+                <p className="text-sm text-gray-500 mb-2">Theo ngày {formatDateDisplay(date)}</p>
+                {bestHourInfo && (
+                  <p className="text-sm text-gray-700 mb-4">
+                    <span className="font-semibold">Giờ bán đắt nhất (theo số đơn):</span>{' '}
+                    {bestHourInfo.hour} – {bestHourInfo.orders} đơn, doanh thu{' '}
+                    {formatCurrency(bestHourInfo.revenue)}
+                  </p>
+                )}
                 {peakHoursLoading ? (
                   <div className="h-[220px] flex items-center justify-center text-gray-500">Đang tải...</div>
                 ) : peakHoursChartData.length > 0 ? (
@@ -522,14 +559,11 @@ const Analytics = () => {
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="hour" />
                       <YAxis />
-                      <Tooltip
-                        formatter={(value) => formatCurrency(value)}
-                        labelFormatter={(label) => `${label}`}
-                      />
-                      <Bar dataKey="revenue" fill="#7A9A6E" isAnimationActive={false}>
+                      <Tooltip content={renderPeakHoursTooltip} />
+                      <Bar dataKey="orders" fill="#7A9A6E" isAnimationActive={false}>
                         {peakHoursChartData.map((entry, index) => {
-                          const maxRev = Math.max(...peakHoursChartData.map((d) => d.revenue));
-                          const isPeak = entry.revenue === maxRev && maxRev > 0;
+                          const maxOrders = Math.max(...peakHoursChartData.map((d) => d.orders));
+                          const isPeak = entry.orders === maxOrders && maxOrders > 0;
                           return <Cell key={index} fill={isPeak ? '#6A8A5E' : '#7A9A6E'} />;
                         })}
                       </Bar>
