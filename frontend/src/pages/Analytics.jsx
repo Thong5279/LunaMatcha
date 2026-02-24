@@ -118,29 +118,61 @@ const Analytics = () => {
     fetchAnalytics();
   }, [period, date, month, year]);
 
-  // Fetch peak hours when period is daily and date is set
+  // Fetch peak hours for current period
   useEffect(() => {
-    if (period !== 'daily' || !date) {
+    // Reset khi không có đủ thông tin
+    if (
+      (period === 'daily' && !date) ||
+      (period === 'weekly' && !date) ||
+      (period === 'monthly' && !month) ||
+      (period === 'quarterly' && (!month || !year)) ||
+      (period === 'yearly' && !year)
+    ) {
       setPeakHoursData(null);
       return;
     }
     let cancelled = false;
     setPeakHoursLoading(true);
-    analyticsService
-      .getPeakHours(date)
-      .then((res) => {
-        if (!cancelled) setPeakHoursData(res.data);
-      })
-      .catch(() => {
-        if (!cancelled) setPeakHoursData(null);
-      })
-      .finally(() => {
-        if (!cancelled) setPeakHoursLoading(false);
-      });
+    const fetchPeak = async () => {
+      try {
+        let res;
+        if (period === 'daily') {
+          res = await analyticsService.getPeakHoursDaily(date);
+        } else if (period === 'weekly') {
+          const week = getWeekNumber(new Date(date));
+          res = await analyticsService.getPeakHoursWeekly(week);
+        } else if (period === 'monthly') {
+          res = await analyticsService.getPeakHoursMonthly(month);
+        } else if (period === 'quarterly') {
+          const quarter = `${year}-Q${Math.ceil(
+            (new Date(month + '-01').getMonth() + 1) / 3
+          )}`;
+          res = await analyticsService.getPeakHoursQuarterly(quarter);
+        } else if (period === 'yearly') {
+          res = await analyticsService.getPeakHoursYearly(year);
+        } else {
+          setPeakHoursData(null);
+          return;
+        }
+        if (!cancelled) {
+          setPeakHoursData(res.data);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setPeakHoursData(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setPeakHoursLoading(false);
+        }
+      }
+    };
+
+    fetchPeak();
     return () => {
       cancelled = true;
     };
-  }, [period, date]);
+  }, [period, date, month, year]);
 
   // Real-time polling for daily analytics (today only)
   useEffect(() => {
@@ -539,11 +571,22 @@ const Analytics = () => {
               </div>
             )}
 
-            {/* Peak hours (daily only) */}
-            {period === 'daily' && (
+            {/* Peak hours for current period */}
+            {['daily', 'weekly', 'monthly', 'quarterly', 'yearly'].includes(period) && (
               <div className="bg-white rounded-lg p-4 shadow">
                 <h3 className="font-semibold mb-1">Khung giờ bán đắt nhất</h3>
-                <p className="text-sm text-gray-500 mb-2">Theo ngày {formatDateDisplay(date)}</p>
+                <p className="text-sm text-gray-500 mb-2">
+                  {period === 'daily' && <>Theo ngày {formatDateDisplay(date)}</>}
+                  {period === 'weekly' && data?.startDate && data?.endDate && (
+                    <>
+                      Theo tuần từ Thứ 2 {formatDateDisplay(data.startDate)} đến Chủ nhật{' '}
+                      {formatDateDisplay(data.endDate)}
+                    </>
+                  )}
+                  {period === 'monthly' && <>Theo tháng {month}</>}
+                  {period === 'quarterly' && <>Theo quý {year}</>}
+                  {period === 'yearly' && <>Theo năm {year}</>}
+                </p>
                 {bestHourInfo && (
                   <p className="text-sm text-gray-700 mb-4">
                     <span className="font-semibold">Giờ bán đắt nhất (theo số đơn):</span>{' '}

@@ -604,37 +604,168 @@ const getYearlyAnalytics = async (req, res) => {
   }
 };
 
-// Giờ cao điểm
+// Helper: tính thống kê theo khung giờ cho khoảng thời gian bất kỳ
+const computeHourStats = async (start, end) => {
+  // Query orders theo orderDate hoặc createdAt (cho orders cũ)
+  const orders = await Order.find({
+    $or: [
+      { orderDate: { $gte: start, $lte: end } },
+      { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
+    ]
+  });
+
+  const hourStats = {};
+  for (let i = 0; i < 24; i++) {
+    hourStats[i] = { revenue: 0, orders: 0 };
+  }
+
+  orders.forEach((order) => {
+    // Dùng thời gian đặt hàng thực tế (createdAt) để tính giờ, fallback về orderDate cho đơn cũ
+    const orderTime = order.createdAt || order.orderDate;
+    if (!orderTime) return;
+    const hour = orderTime.getHours();
+    if (hour < 0 || hour > 23) return;
+    const amount = !order.totalAmount || isNaN(order.totalAmount) ? 0 : order.totalAmount;
+    hourStats[hour].revenue += amount;
+    hourStats[hour].orders += 1;
+  });
+
+  return { hourStats };
+};
+
+// Giờ cao điểm theo ngày (business date)
 const getPeakHours = async (req, res) => {
   try {
     const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp ngày (YYYY-MM-DD)' });
+    }
+
     const start = new Date(date);
     start.setHours(0, 0, 0, 0);
     const end = new Date(date);
     end.setHours(23, 59, 59, 999);
 
-    // Query orders theo orderDate hoặc createdAt (cho orders cũ)
-    const orders = await Order.find({
-      $or: [
-        { orderDate: { $gte: start, $lte: end } },
-        { orderDate: { $exists: false }, createdAt: { $gte: start, $lte: end } }
-      ]
-    });
-
-    const hourStats = {};
-    for (let i = 0; i < 24; i++) {
-      hourStats[i] = { revenue: 0, orders: 0 };
-    }
-
-    orders.forEach((order) => {
-      const orderDate = order.orderDate || order.createdAt;
-      const hour = orderDate.getHours();
-      hourStats[hour].revenue += order.totalAmount;
-      hourStats[hour].orders += 1;
-    });
+    const { hourStats } = await computeHourStats(start, end);
 
     res.json({
       date,
+      startDate: start,
+      endDate: end,
+      hourStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Giờ cao điểm theo tuần (Thứ 2 → Chủ nhật, chuẩn ISO)
+const getPeakHoursWeekly = async (req, res) => {
+  try {
+    const { week } = req.query; // Format: YYYY-WW
+    if (!week) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp tuần (YYYY-WW)' });
+    }
+
+    const [year, weekNum] = week.split('-W').map(Number);
+    const jan4 = new Date(year, 0, 4);
+    const dayOfJan4 = jan4.getDay(); // 0=Chủ nhật, 1=Thứ 2, ...
+    const mondayOffset = dayOfJan4 === 0 ? -6 : 1 - dayOfJan4;
+    const start = new Date(year, 0, 4);
+    start.setDate(start.getDate() + mondayOffset + (weekNum - 1) * 7);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    const { hourStats } = await computeHourStats(start, end);
+
+    res.json({
+      period: 'weekly',
+      week,
+      startDate: start,
+      endDate: end,
+      hourStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Giờ cao điểm theo tháng
+const getPeakHoursMonthly = async (req, res) => {
+  try {
+    const { month } = req.query; // Format: YYYY-MM
+    if (!month) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp tháng (YYYY-MM)' });
+    }
+
+    const [year, monthNum] = month.split('-').map(Number);
+    const start = new Date(year, monthNum - 1, 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(year, monthNum, 0, 23, 59, 59, 999);
+
+    const { hourStats } = await computeHourStats(start, end);
+
+    res.json({
+      period: 'monthly',
+      month,
+      startDate: start,
+      endDate: end,
+      hourStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Giờ cao điểm theo quý
+const getPeakHoursQuarterly = async (req, res) => {
+  try {
+    const { quarter } = req.query; // Format: YYYY-Q
+    if (!quarter) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp quý (YYYY-Q)' });
+    }
+
+    const [year, quarterNum] = quarter.split('-Q').map(Number);
+    const startMonth = (quarterNum - 1) * 3;
+    const start = new Date(year, startMonth, 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999);
+
+    const { hourStats } = await computeHourStats(start, end);
+
+    res.json({
+      period: 'quarterly',
+      quarter,
+      startDate: start,
+      endDate: end,
+      hourStats,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Giờ cao điểm theo năm
+const getPeakHoursYearly = async (req, res) => {
+  try {
+    const { year } = req.query;
+    if (!year) {
+      return res.status(400).json({ message: 'Vui lòng cung cấp năm (YYYY)' });
+    }
+
+    const start = new Date(year, 0, 1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    const { hourStats } = await computeHourStats(start, end);
+
+    res.json({
+      period: 'yearly',
+      year,
+      startDate: start,
+      endDate: end,
       hourStats,
     });
   } catch (error) {
@@ -724,6 +855,10 @@ module.exports = {
   getQuarterlyAnalytics,
   getYearlyAnalytics,
   getPeakHours,
+  getPeakHoursWeekly,
+  getPeakHoursMonthly,
+  getPeakHoursQuarterly,
+  getPeakHoursYearly,
   getTopProducts,
 };
 
